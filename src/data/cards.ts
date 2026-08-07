@@ -8,6 +8,7 @@ export type PoetryCard = {
 
 export type Category = {
   name: string
+  subtitle: string
   description: string
   cards: PoetryCard[]
 }
@@ -15,6 +16,7 @@ export type Category = {
 export const categories: Category[] = [
   {
     name: 'Happy Birthday',
+    subtitle: 'Warm reflections for celebration, joy and another year unfolding',
     description: 'Warm reflections for celebration, joy and another year unfolding.',
     cards: [
       { title: 'A Year More You', text: 'Another year unfolding softly into who you are.', category: 'Happy Birthday', theme: 'gold' },
@@ -25,6 +27,7 @@ export const categories: Category[] = [
   },
   {
     name: 'Love',
+    subtitle: 'Still, soft, and deeply felt words for romance and belonging',
     description: 'Still, soft, and deeply felt words for romance and belonging.',
     cards: [
       { title: 'You Mean Home', text: "You walked in and quietly became the safest part of me.", category: 'Love', theme: 'amber' },
@@ -35,6 +38,7 @@ export const categories: Category[] = [
   },
   {
     name: 'Anniversary',
+    subtitle: 'Poetry for devotion, memory, and choosing each other again',
     description: 'Poetry for devotion, memory, and choosing each other again.',
     cards: [
       { title: 'Still Choosing You', text: 'Every day, I’d choose you all over again.', category: 'Anniversary', theme: 'forest', inverse: true },
@@ -45,6 +49,7 @@ export const categories: Category[] = [
   },
   {
     name: 'Fathers Day',
+    subtitle: 'Grounded words for gratitude, guidance, and quiet strength',
     description: 'Grounded words for gratitude, guidance, and quiet strength.',
     cards: [
       { title: 'For All You Carried', text: 'Strength was in the small faithful things you never missed.', category: 'Fathers Day', theme: 'sage' },
@@ -55,6 +60,7 @@ export const categories: Category[] = [
   },
   {
     name: 'Mothers Day',
+    subtitle: 'Tender cards for nurture, memory, and lasting closeness',
     description: 'Tender cards for nurture, memory, and lasting closeness.',
     cards: [
       { title: 'What Tenderness Looks Like', text: 'You made softness feel strong enough to live by.', category: 'Mothers Day', theme: 'lavender', inverse: true },
