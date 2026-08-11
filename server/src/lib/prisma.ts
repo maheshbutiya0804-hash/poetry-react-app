@@ -8,8 +8,7 @@ const adapter = new PrismaMariaDb({
   user: process.env.DB_USER ?? "root",
   password: process.env.DB_PASSWORD ?? "",
   database: process.env.DB_NAME ?? "heartstring_notes",
-  connectionLimit: 5,
-  dateStrings: true,
+  connectionLimit: 1,
 });
 
 export const prisma = new PrismaClient({
