@@ -54,10 +54,12 @@ function hashSessionToken(token: string) {
 }
 
 function cookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production'
+
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: isProduction ? ('none' as const) : ('lax' as const),
+    secure: isProduction,
     path: '/',
     maxAge: SESSION_MS,
   }
@@ -86,8 +88,23 @@ export async function createLoginSession(res: Response, userId: string) {
 
 export async function destroyLoginSession(req: Request, res: Response) {
   const token = readCookie(req, COOKIE_NAME)
-  if (token) await prisma.authSession.deleteMany({ where: { tokenHash: hashSessionToken(token) } })
-  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' })
+
+  if (token) {
+    await prisma.authSession.deleteMany({
+      where: {
+        tokenHash: hashSessionToken(token),
+      },
+    })
+  }
+
+  const isProduction = process.env.NODE_ENV === 'production'
+
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: isProduction ? 'none' : 'lax',
+    secure: isProduction,
+    path: '/',
+  })
 }
 
 export async function getAuthenticatedUser(req: Request): Promise<SafeAuthUser | null> {
