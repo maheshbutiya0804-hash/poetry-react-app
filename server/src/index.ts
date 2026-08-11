@@ -134,6 +134,7 @@ app.get('/api/categories', async (_req, res) => {
       },
     })
 
+    
     res.json(categories)
   } catch (error) {
     console.error('GET /api/categories failed:', error)
