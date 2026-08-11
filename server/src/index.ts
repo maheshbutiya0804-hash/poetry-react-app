@@ -26,7 +26,23 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 })
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173', credentials: true }))
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://trinityimpact.com',
+  'https://www.trinityimpact.com',
+]
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error(`CORS blocked origin: ${origin}`))
+    }
+  },
+  credentials: true,
+}))
+
 app.use(express.json())
 app.use('/uploads', express.static(storageRoot))
 
