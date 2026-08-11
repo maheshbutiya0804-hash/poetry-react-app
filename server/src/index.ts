@@ -117,6 +117,33 @@ app.get('/api/collections/:collectionId/cards', async (req, res) => {
   res.json(cards.map(card => cardDto(req, card)))
 })
 
+app.get('/api/categories', async (_req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+
+      // Explicit select avoids the date-field problems we encountered earlier.
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        isActive: true,
+        sortOrder: true,
+      },
+    })
+
+    res.json(categories)
+  } catch (error) {
+    console.error('GET /api/categories failed:', error)
+
+    res.status(500).json({
+      message: 'Could not load categories.',
+    })
+  }
+})
+
 app.get('/api/cards/:cardId', async (req, res) => {
   const card = await prisma.card.findFirst({
     where: { id: req.params.cardId, isPublished: true },

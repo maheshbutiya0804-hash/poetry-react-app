@@ -17,6 +17,26 @@ export type AuthUser = {
   hasPassword?: boolean
 }
 
+export type CardCategory = {
+  id: string
+  name: string
+  slug: string
+  description?: string | null
+  isActive: boolean
+  sortOrder: number
+}
+
+
+export async function getCategories(): Promise<CardCategory[]> {
+  const response = await apiFetch(`${API_BASE}/categories`)
+
+  if (!response.ok) {
+    throw new Error('Unable to load categories')
+  }
+
+  return response.json()
+}
+
 export type RegisterInput = { fullName: string; email: string; phone?: string; password: string }
 
 function normalizeAuthUser(user: AuthUser): AuthUser {
