@@ -1,9 +1,32 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Builds
+dist/
+server/dist/
+
+# Environment / secrets
 .env
 .env.local
 .env.production
+server/.env
+server/.env.local
+server/.env.production
+
+# Keep examples
+!.env.example
+!server/.env.example
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS / IDE
 .DS_Store
-.vscode
-.idea
+Thumbs.db
+.vscode/
+.idea/
+
+# Local uploads
+server/storage/

@@ -1,0 +1,18 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import type { LoveNoteCard } from '../../types/loveNote'
+import { adminDeleteCard, adminGetCards, adminSetPublished } from '../../services/api'
+import { AdminHero, Panel, StatCard } from '../components/AdminLayout'
+
+export function CardsPage(){
+ const [cards,setCards]=useState<LoveNoteCard[]>([]); const [q,setQ]=useState(''); const [status,setStatus]=useState('all'); const [loading,setLoading]=useState(true); const [error,setError]=useState('')
+ const load=()=>{setLoading(true);adminGetCards().then(setCards).catch(e=>setError(e.message)).finally(()=>setLoading(false))}; useEffect(load,[])
+ const filtered=useMemo(()=>cards.filter(c=>(!q||`${c.title} ${c.excerpt}`.toLowerCase().includes(q.toLowerCase()))&&(status==='all'||(status==='published'?c.published:!c.published))),[cards,q,status])
+ async function toggle(c:LoveNoteCard){await adminSetPublished(c.id,!c.published);load()}
+ async function remove(c:LoveNoteCard){if(!confirm(`Delete “${c.title}”?`))return;await adminDeleteCard(c.id);load()}
+ return <><AdminHero title="Cards" copy="Cards are reviewed, created, and published here, with fixed categories and clear editorial visibility managed from one calm operational view." action={<Link className="hs-btn" to="/admin/cards/new">＋ Create New Card</Link>}/>
+ <Panel><span className="hs-eyebrow">CARDS LIBRARY</span><h2>Cards Management</h2><p>Review all card entries, refine draft and published states, and manage the fixed category library.</p>
+ <div className="hs-stats four inner"><StatCard label="TOTAL CARDS" value={cards.length} note="Across all fixed categories."/><StatCard label="DRAFTS" value={cards.filter(c=>!c.published).length} note="Hidden from users until published."/><StatCard label="PUBLISHED" value={cards.filter(c=>c.published).length} note="Visible in standard browsing flows."/><StatCard accent label="FEATURED" value="0" note="Available for public discovery."/></div>
+ <div className="hs-filter"><div className="hs-search">⌕ <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search cards..."/></div><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">Card Status</option><option value="published">Published</option><option value="draft">Draft</option></select><select><option>Card Categories</option></select><label className="hs-toggle"><input type="checkbox"/> Featured Only</label><button className="hs-outline">↧ Bulk Upload</button></div>
+ {error&&<div className="hs-error">{error}</div>}{loading?<div className="hs-empty">Loading cards…</div>:<div className="hs-table"><div className="hs-tr head"><span>CARD TITLE ↕</span><span>CATEGORY ↕</span><span>STATUS ↕</span><span>FEATURED ↕</span><span>LAST UPDATED ↕</span><span>ACTIONS</span></div>{filtered.map(c=><div className="hs-tr" key={c.id}><span className="hs-card-name"><img src={c.previewImageUrl||''}/><span><b>{c.title}</b><small>{c.excerpt||'Premium poetry card'}</small></span></span><span><em className="hs-pill">Collection</em></span><span><button className={`hs-pill ${c.published?'green':''}`} onClick={()=>toggle(c)}>● {c.published?'Published':'Draft'}</button></span><span><em className="hs-pill">● Not Featured</em></span><span>{new Date().toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'})}</span><span className="hs-row-actions"><Link to={`/admin/cards/${c.id}/edit`}>✎</Link><button onClick={()=>remove(c)}>▱</button></span></div>)}{!filtered.length&&<div className="hs-empty">No cards found.</div>}</div>}
+ </Panel></>}

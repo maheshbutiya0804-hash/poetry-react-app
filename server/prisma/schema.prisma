@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  slug        String   @unique @db.VarChar(191)
+  name        String   @db.VarChar(191)
+  description String   @default("") @db.Text
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  cards       Card[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model Card {
+  id               String     @id @default(cuid()) @db.VarChar(191)
+  slug             String     @unique @db.VarChar(191)
+  collectionId     String     @db.VarChar(191)
+  collection       Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  title            String     @db.VarChar(191)
+  description      String     @default("") @db.Text
+  pdfPath          String?    @db.VarChar(500)
+  previewPath      String?    @db.VarChar(500)
+  originalFileName String?    @db.VarChar(255)
+  poemText         String     @default("") @db.Text
+  adminNotes       String     @default("") @db.Text
+  isFeatured       Boolean    @default(false)
+  templateKey      String     @default("botanical-cream") @db.VarChar(80)
+  frontLayout      Json?
+  backLayout       Json?
+  widthInches      Float      @default(7)
+  heightInches     Float      @default(5)
+  orientation      String     @default("landscape") @db.VarChar(32)
+  sideCount        Int        @default(1)
+  pageCount        Int        @default(1)
+  isPublished      Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([collectionId, isPublished])
+  @@index([isPublished, createdAt])
+}
+
+model User {
+  id           String               @id @default(cuid()) @db.VarChar(191)
+  fullName     String               @db.VarChar(191)
+  email        String               @unique @db.VarChar(191)
+  phone        String?              @db.VarChar(50)
+  passwordHash   String?              @db.VarChar(255)
+  googleSubject  String?              @unique @db.VarChar(191)
+  profileImageUrl String?              @db.VarChar(500)
+  lastLoginAt    DateTime?
+  role           String               @default("USER") @db.VarChar(32)
+  status       String               @default("ACTIVE") @db.VarChar(32)
+  joinedAt     DateTime             @default(now())
+  subscription Subscription?
+  payments     PaymentTransaction[]
+  poetryRequests PoetryRequest[]
+  cardOrders     CardOrder[]
+  notificationJobs NotificationJob[]
+  authSessions AuthSession[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([role, status])
+  @@index([joinedAt])
+}
+
+
+model AuthSession {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @db.VarChar(191)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @db.Char(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model Subscription {
+  id               String    @id @default(cuid()) @db.VarChar(191)
+  userId           String    @unique @db.VarChar(191)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planName         String    @default("Monthly Access") @db.VarChar(120)
+  status           String    @default("INCOMPLETE") @db.VarChar(32)
+  paymentStatus    String    @default("NONE") @db.VarChar(32)
+  monthlyPrice     Decimal   @default(8.99) @db.Decimal(10, 2)
+  startedAt        DateTime?
+  currentPeriodEnd DateTime?
+  cancelledAt      DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
+  @@index([paymentStatus])
+}
+
+model PaymentTransaction {
+  id                    String   @id @default(cuid()) @db.VarChar(191)
+  userId                String   @db.VarChar(191)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerTransactionId String?  @unique @db.VarChar(191)
+  description           String   @default("Subscription update") @db.VarChar(191)
+  amount                Decimal  @db.Decimal(10, 2)
+  currency              String   @default("USD") @db.VarChar(10)
+  status                String   @default("SUCCESS") @db.VarChar(32)
+  occurredAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+
+  @@index([userId, occurredAt])
+  @@index([status, occurredAt])
+}
+
+
+model Challenge {
+  id                  String              @id @default(cuid()) @db.VarChar(191)
+  title               String              @db.VarChar(191)
+  challengeMonth      DateTime
+  overview            String              @db.Text
+  goal                String              @db.Text
+  howToComplete       String              @db.Text
+  relationshipBenefit String              @db.Text
+  imagePath           String?             @db.VarChar(500)
+  status              String              @default("DRAFT") @db.VarChar(32)
+  publishedAt         DateTime?
+  reminders           ChallengeReminder[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([status, challengeMonth])
+}
+
+model ChallengeReminder {
+  id          String    @id @default(cuid()) @db.VarChar(191)
+  challengeId String    @db.VarChar(191)
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  dayOfMonth  Int
+  timeOfDay   String    @default("09:00") @db.VarChar(10)
+  channel     String    @default("EMAIL") @db.VarChar(20)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@index([challengeId, dayOfMonth])
+}
+
+model PoetryRequest {
+  id           String   @id @default(cuid()) @db.VarChar(191)
+  userId       String?  @db.VarChar(191)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requesterName String  @db.VarChar(191)
+  requesterEmail String @db.VarChar(191)
+  category     String   @db.VarChar(120)
+  occasion     String?  @db.VarChar(191)
+  prompt       String   @db.Text
+  status       String   @default("PENDING") @db.VarChar(32)
+  adminNotes   String?  @db.Text
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@index([userId])
+}
+
+model CardOrder {
+  id              String   @id @default(cuid()) @db.VarChar(191)
+  orderNumber     String   @unique @db.VarChar(80)
+  userId          String?  @db.VarChar(191)
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName    String   @db.VarChar(191)
+  customerEmail   String   @db.VarChar(191)
+  cardTitle       String   @db.VarChar(191)
+  cardCategory    String?  @db.VarChar(120)
+  quantity        Int      @default(1)
+  shippingFee     Decimal? @db.Decimal(10, 2)
+  totalAmount     Decimal? @db.Decimal(10, 2)
+  status          String   @default("PLACED") @db.VarChar(32)
+  reviewed        Boolean  @default(false)
+  shippingName    String?  @db.VarChar(191)
+  shippingAddress String?  @db.Text
+  trackingNumber  String?  @db.VarChar(191)
+  placedAt        DateTime @default(now())
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, placedAt])
+  @@index([reviewed])
+  @@index([userId])
+}
+
+model NotificationJob {
+  id              String   @id @default(cuid()) @db.VarChar(191)
+  channel         String   @default("EMAIL") @db.VarChar(20)
+  audience        String   @default("SINGLE_USER") @db.VarChar(32)
+  selectedUserId  String?  @db.VarChar(191)
+  selectedUser    User?    @relation(fields: [selectedUserId], references: [id], onDelete: SetNull)
+  recipientEmail  String?  @db.VarChar(191)
+  subject         String?  @db.VarChar(255)
+  message         String   @db.Text
+  status          String   @default("QUEUED") @db.VarChar(32)
+  totalRecipients Int      @default(0)
+  sentCount       Int      @default(0)
+  failedCount     Int      @default(0)
+  sentAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([audience, createdAt])
+  @@index([selectedUserId])
+}
+
+model CommunityPost {
+  id              String              @id @default(cuid()) @db.VarChar(191)
+  authorId        String?             @db.VarChar(191)
+  authorName      String              @db.VarChar(191)
+  category        String              @default("General") @db.VarChar(120)
+  title           String              @db.VarChar(255)
+  body            String              @db.Text
+  status          String              @default("PUBLISHED") @db.VarChar(32)
+  isReported      Boolean             @default(false)
+  reportCount     Int                 @default(0)
+  responses       CommunityResponse[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([isReported, createdAt])
+}
+
+model CommunityResponse {
+  id         String        @id @default(cuid()) @db.VarChar(191)
+  postId     String        @db.VarChar(191)
+  post       CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorName String        @db.VarChar(191)
+  body       String        @db.Text
+  status     String        @default("PUBLISHED") @db.VarChar(32)
+  isReported Boolean       @default(false)
+  reportCount Int          @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([postId, createdAt])
+  @@index([isReported, createdAt])
+}
+
+model SystemSetting {
+  id                 String   @id @default("platform") @db.VarChar(64)
+  defaultPrintingFee Decimal  @default(7.00) @db.Decimal(10, 2)
+  orderFeedbackEmail Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}

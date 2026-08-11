@@ -1,36 +1,165 @@
-import { useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { loveNoteCards, loveNoteCollections } from '../../data/loveNotes'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { LoveNoteCard } from '../../components/love-notes/LoveNoteCard'
-import { downloadLoveNotePdf } from '../../utils/downloadLoveNotePdf'
+import type { LoveNoteCard as LoveNoteCardType, LoveNoteCollection } from '../../types/loveNote'
+import { getCard, getCollectionCards, getCollections } from '../../services/api'
+
+function LoadingBlock({ text = 'Loading…' }: { text?: string }) {
+  return <div className="empty-product"><p>{text}</p></div>
+}
 
 export function LoveNotesPage() {
-  return <main className="hs-page"><section className="hs-page-hero"><p>Love Notes</p><h1>Choose a collection.</h1><span>The requirement confirms nine approved collections. Their final client-approved names and designs should be loaded as content, not recreated by developers.</span></section><section className="hs-content"><div className="collection-grid">{loveNoteCollections.map(c=><Link key={c.id} className="collection-card" to={`/love-notes/${c.id}`}><span>Love Note Collection</span><h2>{c.name}</h2><p>{c.description}</p></Link>)}</div></section></main>
+  const [collections, setCollections] = useState<LoveNoteCollection[]>([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    getCollections().then(setCollections).catch(error => setError(error instanceof Error ? error.message : 'Unable to load collections'))
+  }, [])
+
+  return (
+    <main className="hs-page">
+      <section className="hs-page-hero">
+        <p>Love Notes</p>
+        <h1>Choose a collection.</h1>
+        <span>The catalog below is now loaded from the HeartString database.</span>
+      </section>
+      <section className="hs-content">
+        {error ? <LoadingBlock text={error} /> : !collections.length ? <LoadingBlock /> : (
+          <div className="collection-grid">
+            {collections.map(collection => (
+              <Link key={collection.id} className="collection-card" to={`/love-notes/${collection.id}`}>
+                <span>Love Note Collection</span>
+                <h2>{collection.name}</h2>
+                <p>{collection.description}</p>
+                <small>{collection.cardCount ? `${collection.cardCount} cards available` : 'Awaiting client designs'}</small>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
+  )
 }
 
 export function CollectionPage() {
   const { collectionId = '' } = useParams()
-  const collection = loveNoteCollections.find(c => c.id === collectionId)
-  const cards = loveNoteCards.filter(c => c.collectionId === collectionId && c.published)
-  return <main className="hs-page"><section className="hs-page-hero"><p>Love Notes</p><h1>{collection?.name ?? 'Collection'}</h1><span>{collection?.description}</span></section><section className="hs-content"><div className="note-product-grid">{cards.length ? cards.map(card=><Link to={`/love-notes/${collectionId}/${card.id}`} className="note-product" key={card.id}><LoveNoteCard card={card}/><h3>{card.title}</h3><span>Preview & personalize →</span></Link>) : <div className="empty-product"><h2>Designs not uploaded yet</h2><p>The client provides the approved Love Note designs. Add them through the card data/admin upload flow.</p></div>}</div></section></main>
+  const [collections, setCollections] = useState<LoveNoteCollection[]>([])
+  const [cards, setCards] = useState<LoveNoteCardType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([getCollections(), getCollectionCards(collectionId)])
+      .then(([collectionItems, cardItems]) => {
+        setCollections(collectionItems)
+        setCards(cardItems)
+      })
+      .catch(error => setError(error instanceof Error ? error.message : 'Unable to load collection'))
+      .finally(() => setLoading(false))
+  }, [collectionId])
+
+  const collection = collections.find(c => c.id === collectionId)
+  if (!loading && collections.length && !collection) return <Navigate to="/love-notes" replace />
+
+  return (
+    <main className="hs-page">
+      <section className="hs-page-hero">
+        <p>Love Notes</p>
+        <h1>{collection?.name ?? 'Collection'}</h1>
+        <span>{collection?.description ?? 'Client-approved Love Note cards.'}</span>
+      </section>
+      <section className="hs-content">
+        {loading ? <LoadingBlock /> : error ? <LoadingBlock text={error} /> : (
+          <div className="note-product-grid">
+            {cards.length ? cards.map(card => (
+              <Link to={`/cards/${card.id}`} className="note-product" key={card.id}>
+                <LoveNoteCard card={card} />
+                <div className="note-product-copy">
+                  <h3>{card.title}</h3>
+                  <p>{card.excerpt}</p>
+                  <span>Preview card →</span>
+                </div>
+              </Link>
+            )) : (
+              <div className="empty-product">
+                <h2>Designs not uploaded yet</h2>
+                <p>Use the admin upload page to add client-approved Love Note products.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    </main>
+  )
 }
 
 export function LoveNoteDetailPage() {
   const { cardId = '' } = useParams()
-  const card = useMemo(() => loveNoteCards.find(c => c.id === cardId) ?? loveNoteCards[0], [cardId])
-  const [message, setMessage] = useState(card.message)
-  const [downloading, setDownloading] = useState(false)
-  const cardRef = useRef<HTMLDivElement>(null)
+  const [card, setCard] = useState<LoveNoteCardType | null>(null)
+  const [collectionCards, setCollectionCards] = useState<LoveNoteCardType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  async function download() {
-    if (!cardRef.current) return
-    try {
-      setDownloading(true)
-      await downloadLoveNotePdf(cardRef.current, card.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'))
-    } finally {
-      setDownloading(false)
-    }
-  }
+  useEffect(() => {
+    setLoading(true)
+    getCard(cardId)
+      .then(async item => {
+        setCard(item)
+        const related = await getCollectionCards(item.collectionId)
+        setCollectionCards(related)
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false))
+  }, [cardId])
 
-  return <main className="hs-page"><section className="hs-page-hero"><p>Love Note Preview</p><h1>{card.title}</h1><span>Your PDF uses this exact preview renderer at the required 7 × 5 inch landscape size.</span></section><section className="hs-content love-note-editor"><div className="preview-stage"><LoveNoteCard ref={cardRef} card={card} message={message}/><p className="ratio-note">Preview ratio: 7:5 landscape · front side only</p></div><aside className="editor-panel"><h2>Personalize your note</h2><label>Card message<textarea rows={8} value={message} onChange={e=>setMessage(e.target.value)}/></label><button className="button" type="button" onClick={download} disabled={downloading}>{downloading?'Generating PDF…':'Download 5 × 7 PDF'}</button><p className="helper-copy">The generated file is one landscape 7 × 5 inch PDF page and captures the same card element shown in the preview.</p></aside></section></main>
+  const related = useMemo(() => collectionCards.filter(item => item.id !== card?.id).slice(0, 3), [collectionCards, card])
+
+  if (notFound) return <Navigate to="/love-notes" replace />
+  if (loading || !card) return <main className="reference-card-page"><LoadingBlock /></main>
+
+  return (
+    <main className="reference-card-page">
+      <div className="reference-back-row">
+        <Link to={`/love-notes/${card.collectionId}`}>← <span>Back to Browse</span></Link>
+      </div>
+
+      <section className="reference-card-detail">
+        <div className="reference-preview-column">
+          <div className="protected-card-shell">
+            <LoveNoteCard card={card} eager />
+            <div className="protected-fade" aria-hidden="true" />
+            <div className="protected-message">
+              <strong>PROTECTED PREVIEW</strong>
+              <p>This poem is softly protected in preview mode.<br/>Subscribe to view the full card and unlock clean downloads.</p>
+            </div>
+          </div>
+          <p className="reference-card-spec">5 × 7 inches · landscape · front only</p>
+        </div>
+
+        <aside className="reference-card-info">
+          <span className="reference-category-pill">○ Love</span>
+          <h1>{card.title}</h1>
+          <p className="reference-card-description">{card.excerpt}</p>
+          <Link className="reference-subscribe-button" to="/register">Subscribe for Full Access – $8.99/month</Link>
+          <p className="reference-save-note">Customization and downloads are available after saving, from the Saved Library page.</p>
+          {card.pdfUrl&&<a className="reference-demo-download" href={card.pdfUrl} download={`${card.slug ?? card.id}.pdf`}>Developer preview: download source PDF</a>}
+        </aside>
+      </section>
+
+      {!!related.length && (
+        <section className="reference-related">
+          <p className="reference-related-label">RELATED CARDS</p>
+          <div className="reference-related-grid">
+            {related.map(item => (
+              <Link key={item.id} to={`/cards/${item.id}`} className="reference-related-card">
+                <LoveNoteCard card={item} />
+                <h3>{item.title}</h3>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
+  )
 }

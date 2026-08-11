@@ -1,29 +1,14 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../auth/AuthContext'
 
-const links = [
-  ['/', 'Home'],
-  ['/about', 'About Me'],
-  ['/love-in-action', 'Love In Action'],
-  ['/monthly-challenges', 'Monthly Challenges'],
-  ['/scavenger-hunt', 'Scavenger Hunt'],
-  ['/love-notes', 'Love Notes'],
-  ['/faq', 'FAQ'],
-]
-
-export function SiteLayout() {
-  return (
-    <div className="hs-site">
-      <header className="hs-header">
-        <NavLink to="/" className="hs-brand">HeartString Notes</NavLink>
-        <nav className="hs-nav" aria-label="Primary navigation">
-          {links.map(([to, label]) => <NavLink key={to} to={to} end={to === '/'}>{label}</NavLink>)}
-        </nav>
-      </header>
-      <Outlet />
-      <footer className="hs-footer">
-        <div><strong>HeartString Notes</strong><p>Meaningful notes designed to be previewed, personalized, downloaded and printed.</p></div>
-        <nav>{links.slice(1).map(([to, label]) => <NavLink key={to} to={to}>{label}</NavLink>)}</nav>
-      </footer>
-    </div>
-  )
+const secondaryLinks=[['/about','About'],['/love-in-action','Love In Action'],['/monthly-challenges','Monthly Challenges'],['/scavenger-hunt','Scavenger Hunt'],['/faq','FAQ']]
+const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()
+export function SiteLayout(){
+ const [open,setOpen]=useState(false),[accountOpen,setAccountOpen]=useState(false); const {user,logout}=useAuth(); const navigate=useNavigate()
+ async function signOut(){await logout();setAccountOpen(false);navigate('/login')}
+ return <div className="hs-site"><header className="reference-header"><Link to="/" className="reference-brand" onClick={()=>setOpen(false)}><div className="brand-logo"><img src="/assets/branding/heartstring-notes-logo.png" className="brand-logo-icon" alt="HeartString Notes"/><div className="brand-wordmark"><span>HeartString Notes</span><sup className="brand-tm">TM</sup></div></div></Link>
+  <nav className="reference-center-nav" aria-label="Browse navigation"><NavLink to="/love-notes">Browse</NavLink><NavLink to="/love-notes">Categories</NavLink>{user&&<><NavLink to="/library">Library</NavLink><NavLink to="/forum">Forum</NavLink><NavLink to="/orders">Orders</NavLink></>}</nav>
+  <div className="reference-auth-nav">{user?<div className="account-menu-wrap"><button className="header-avatar" onClick={()=>setAccountOpen(v=>!v)}>{user.profileImageUrl?<img src={user.profileImageUrl} alt=""/>:initials(user.fullName)}</button>{accountOpen&&<div className="account-popover"><Link to="/profile" onClick={()=>setAccountOpen(false)}>Profile &amp; Settings</Link><button onClick={signOut}>Logout &nbsp; ⇥</button></div>}</div>:<><Link to="/login">Sign In</Link><Link to="/register" className="start-access-button">Start Access</Link></>}<button className="reference-menu-button" type="button" aria-label="Toggle menu" onClick={()=>setOpen(v=>!v)}><span/><span/><span/></button></div>
+  {open&&<nav className="reference-mobile-menu"><NavLink to="/love-notes" onClick={()=>setOpen(false)}>Browse</NavLink><NavLink to="/love-notes" onClick={()=>setOpen(false)}>Categories</NavLink>{secondaryLinks.map(([to,label])=><NavLink key={to} to={to} onClick={()=>setOpen(false)}>{label}</NavLink>)}{user?<><NavLink to="/profile" onClick={()=>setOpen(false)}>Profile</NavLink><button onClick={signOut}>Logout</button></>:<><NavLink to="/login" onClick={()=>setOpen(false)}>Sign In</NavLink><NavLink to="/register" onClick={()=>setOpen(false)}>Start Access</NavLink></>}</nav>}</header><Outlet/><footer className="reference-footer"><div className="reference-footer-brand"><div className="brand-logo"><img src="/assets/branding/heartstring-notes-logo.png" className="footer-brand brand-logo-icon" alt=""/><div className="footer-brand brand-wordmark"><span>HeartString Notes</span><sup className="footer-brand brand-tm">TM</sup></div></div><p>Poetry that speaks. Moments that last.</p></div><nav className="reference-footer-nav"><Link to="/about">About</Link><a href="mailto:hello@heartstringnotes.com">✉</a><a href="#">◎</a><a href="#">●</a></nav></footer></div>
 }

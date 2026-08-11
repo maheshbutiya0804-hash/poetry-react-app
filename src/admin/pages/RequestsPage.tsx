@@ -1,0 +1,23 @@
+import { useEffect, useState } from 'react'
+import { AdminHero, Panel, StatCard } from '../components/AdminLayout'
+import { adminGetRequests, adminSetRequestStatus, type AdminPoetryRequest, type AdminRequestsResponse } from '../../services/api'
+
+const empty:AdminRequestsResponse={summary:{total:0,pending:0,inProgress:0,completed:0,cancelled:0},categories:[],requests:[]}
+const dateFmt=(v:string)=>new Intl.DateTimeFormat('en-US',{month:'short',day:'2-digit',year:'numeric'}).format(new Date(v))
+
+export function RequestsPage(){
+ const [data,setData]=useState(empty),[search,setSearch]=useState(''),[status,setStatus]=useState(''),[category,setCategory]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState('')
+ async function load(){setLoading(true);setError('');try{setData(await adminGetRequests({search,status,category}))}catch(e){setError(e instanceof Error?e.message:'Unable to load requests')}finally{setLoading(false)}}
+ useEffect(()=>{const t=setTimeout(load,160);return()=>clearTimeout(t)},[search,status,category])
+ async function update(item:AdminPoetryRequest,next:AdminPoetryRequest['status']){try{await adminSetRequestStatus(item.id,next);await load()}catch(e){setError(e instanceof Error?e.message:'Unable to update request')}}
+ return <>
+  <AdminHero title="Requests" copy="A clear, premium workspace for personalized poem requests, with gentle structure for review, progress, and completion."/>
+  <div className="hs-stats five hs-request-stats"><StatCard label="TOTAL REQUESTS" value={data.summary.total} note="All custom poetry requests across the platform."/><StatCard accent label="PENDING" value={data.summary.pending} note="Requests waiting for editorial work to begin."/><StatCard label="IN PROGRESS" value={data.summary.inProgress} note="Requests currently being written or reviewed."/><StatCard label="COMPLETED" value={data.summary.completed} note="Requests already delivered back to the user."/><StatCard label="CANCELLED" value={data.summary.cancelled} note="Requests closed before completion."/></div>
+  <Panel>
+   <span className="hs-eyebrow">REQUESTS LIST</span><h2>Personalized poem requests</h2><p>Each completed request remains inside Your Requests on the user side.</p>
+   <div className="hs-filter hs-request-filter"><label className="hs-search">⌕ <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requests..."/></label><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Request Status</option><option value="PENDING">Pending</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Card Categories</option>{data.categories.map(c=><option key={c}>{c}</option>)}</select></div>
+   {error&&<div className="hs-error">{error}</div>}
+   {loading?<div className="hs-empty hs-request-empty">Loading requests…</div>:data.requests.length===0?<div className="hs-empty hs-request-empty"><div className="hs-empty-icon">▱</div><h2>No requests found</h2><p>New personalized poem requests will appear here.</p></div>:<div className="hs-request-table"><div className="hs-request-row head"><span>REQUESTER</span><span>CATEGORY</span><span>REQUEST</span><span>STATUS</span><span>DATE</span><span>ACTION</span></div>{data.requests.map(r=><div className="hs-request-row" key={r.id}><span><b>{r.requesterName}</b><small>{r.requesterEmail}</small></span><span><em className="hs-pill">{r.category}</em></span><span className="hs-request-prompt"><b>{r.occasion||'Personalized poem'}</b><small>{r.prompt}</small></span><span><select className={`hs-inline-status ${r.status==='COMPLETED'?'done':''}`} value={r.status} onChange={e=>update(r,e.target.value as AdminPoetryRequest['status'])}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></span><span>{dateFmt(r.createdAt)}</span><span><button className="hs-mini-btn" onClick={()=>alert(`${r.requesterName}\n${r.prompt}`)}>View</button></span></div>)}</div>}
+  </Panel>
+ </>
+}

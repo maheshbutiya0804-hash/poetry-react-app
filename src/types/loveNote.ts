@@ -1,19 +1,29 @@
 export type LoveNoteCollection = {
   id: string
+  slug?: string
   name: string
   description: string
+  cardCount?: number
 }
 
 export type LoveNoteCard = {
   id: string
+  slug?: string
   collectionId: string
   title: string
-  message: string
-  designImageUrl: string
-  textColor?: string
-  textAlign?: 'left' | 'center' | 'right'
-  textXPercent?: number
-  textYPercent?: number
-  textWidthPercent?: number
-  published?: boolean
+  excerpt: string
+  previewImageUrl: string
+  pdfUrl: string | null
+  published: boolean
+  poemText?: string
+  adminNotes?: string
+  isFeatured?: boolean
+  templateKey?: string
+  frontLayout?: unknown
+  backLayout?: unknown
+  widthInches?: number
+  heightInches?: number
+  orientation?: string
+  sideCount?: number
+  pageCount?: number
 }

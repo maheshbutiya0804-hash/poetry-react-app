@@ -1,34 +1,28 @@
-import { forwardRef } from 'react'
 import type { LoveNoteCard as LoveNoteCardType } from '../../types/loveNote'
 
 type Props = {
   card: LoveNoteCardType
-  message?: string
   className?: string
+  eager?: boolean
 }
 
-export const LoveNoteCard = forwardRef<HTMLDivElement, Props>(function LoveNoteCard(
-  { card, message, className = '' },
-  ref,
-) {
-  const x = card.textXPercent ?? 50
-  const y = card.textYPercent ?? 50
-  const width = card.textWidthPercent ?? 70
+export function LoveNoteCard({ card, className = '', eager = false }: Props) {
+  const isPdfPreview = card.previewImageUrl?.toLowerCase().includes('.pdf')
+
   return (
-    <div ref={ref} className={`love-note-card ${className}`} aria-label={`${card.title} preview`}>
-      {card.designImageUrl ? <img className="love-note-art" src={card.designImageUrl} alt="" /> : <div className="love-note-art love-note-placeholder" />}
-      <div
-        className="love-note-copy"
-        style={{
-          left: `${x}%`,
-          top: `${y}%`,
-          width: `${width}%`,
-          color: card.textColor ?? '#3d2d31',
-          textAlign: card.textAlign ?? 'center',
-        }}
-      >
-        {message || card.message}
-      </div>
-    </div>
+    <figure className={`love-note-card ${className}`} aria-label={`${card.title} preview`}>
+      {isPdfPreview ? (
+        <object className="love-note-art love-note-pdf-preview" data={`${card.previewImageUrl}#toolbar=0&navpanes=0&scrollbar=0`} type="application/pdf" aria-label={`${card.title} PDF preview`}>
+          <span>PDF preview available on the card detail page.</span>
+        </object>
+      ) : (
+        <img
+          className="love-note-art"
+          src={card.previewImageUrl}
+          alt={`${card.title} card artwork`}
+          loading={eager ? 'eager' : 'lazy'}
+        />
+      )}
+    </figure>
   )
-})
+}
