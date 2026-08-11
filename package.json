@@ -14,7 +14,9 @@
     "typescript": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "react-router-dom": "latest"
+    "react-router-dom": "latest",
+    "html-to-image": "latest",
+    "jspdf": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",

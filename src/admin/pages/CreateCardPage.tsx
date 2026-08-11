@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { LoveNoteCollection } from '../../types/loveNote'
-import { adminCreateDesignedCard, adminGetCard, adminUpdateDesignedCard, getCollections } from '../../services/api'
+import { adminCreateDesignedCard, adminGetCard, adminUpdateDesignedCard, adminGetCategories, adminGetCollections, type AdminCollection, type CardCategory } from '../../services/api'
 import { AdminHero, Panel } from '../components/AdminLayout'
 
 type LayoutState = {
@@ -42,8 +41,10 @@ export function CreateCardPage(){
   const nav=useNavigate()
   const {cardId}=useParams()
   const isEdit=Boolean(cardId)
-  const [cols,setCols]=useState<LoveNoteCollection[]>([])
+  const [cols,setCols]=useState<AdminCollection[]>([])
   const [collectionId,setCollectionId]=useState('')
+  const [categories,setCategories]=useState<CardCategory[]>([])
+  const [categoryId,setCategoryId]=useState('')
   const [loadingCard,setLoadingCard]=useState(isEdit)
   const [busy,setBusy]=useState(false)
   const [msg,setMsg]=useState('')
@@ -58,12 +59,13 @@ export function CreateCardPage(){
   const [front,setFront]=useState<LayoutState>(defaultLayout)
   const [back,setBack]=useState<LayoutState>({...defaultLayout, titleSize: 90, poemSize: 90})
 
-  useEffect(()=>{getCollections().then(setCols).catch(e=>setMsg(e.message))},[])
+  useEffect(()=>{Promise.all([adminGetCollections(),adminGetCategories()]).then(([collections,categoryItems])=>{setCols(collections);setCategories(categoryItems)}).catch(e=>setMsg(e.message))},[])
   useEffect(()=>{
     if(!cardId) return
     setLoadingCard(true)
     adminGetCard(cardId).then(card=>{
       setCollectionId(card.collectionId)
+      setCategoryId(card.categoryId ?? '')
       setTitle(card.title ?? '')
       setDescription(card.excerpt ?? '')
       setPoem(card.poemText ?? '')
@@ -86,7 +88,7 @@ export function CreateCardPage(){
     e.preventDefault();setBusy(true);setMsg('')
     try{
       const fd=new FormData(e.currentTarget)
-      fd.set('collectionId',collectionId);fd.set('title',title);fd.set('description',description);fd.set('poemText',poem);fd.set('adminNotes',adminNotes)
+      fd.set('collectionId',collectionId);fd.set('categoryId',categoryId);fd.set('title',title);fd.set('description',description);fd.set('poemText',poem);fd.set('adminNotes',adminNotes)
       fd.set('published',String(status==='PUBLISHED'));fd.set('featured',String(featured))
       fd.set('frontLayout',JSON.stringify(front));fd.set('backLayout',JSON.stringify(back));fd.set('templateKey','botanical-cream')
       if(isEdit && cardId) await adminUpdateDesignedCard(cardId,fd); else await adminCreateDesignedCard(fd);nav('/admin/cards')
@@ -98,7 +100,7 @@ export function CreateCardPage(){
   return <>
     <AdminHero eyebrow="ADMIN CARDS" title={isEdit?"Edit Card":"Create Card"} copy={isEdit?"Update card content, visibility, and saved design settings.":"Add a new poetry card and adjust how the text appears on the design."} action={<Link className="hs-outline" to="/admin/cards">← Back to Cards</Link>}/>
     <form onSubmit={submit} className="create-card-reference">
-      <Panel><h2>Basic Information</h2><p>Set the editorial details that identify the card in the admin system.</p><div className="ref-grid two"><label>Title<input value={title} onChange={e=>setTitle(e.target.value)} required/></label><label>Category<select name="collectionId" required value={collectionId} onChange={e=>setCollectionId(e.target.value)}><option value="" disabled>Select category</option>{cols.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="wide">Description<textarea value={description} onChange={e=>setDescription(e.target.value)} rows={4}/></label></div></Panel>
+      <Panel><h2>Basic Information</h2><p>Set the editorial details that identify the card in the admin system.</p><div className="ref-grid two"><label>Title<input value={title} onChange={e=>setTitle(e.target.value)} required/></label><label>Collection<select name="collectionId" required value={collectionId} onChange={e=>setCollectionId(e.target.value)}><option value="" disabled>Select collection</option>{cols.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Category<select name="categoryId" required value={categoryId} onChange={e=>setCategoryId(e.target.value)}><option value="" disabled>Select category</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="wide">Description<textarea value={description} onChange={e=>setDescription(e.target.value)} rows={4}/></label></div></Panel>
       <Panel><h2>Poem Content</h2><p>Keep the poem text ready for future backend storage.</p><label>Poem Text<textarea className={!poem.trim()?'invalid':''} value={poem} onChange={e=>setPoem(e.target.value)} rows={8} required placeholder="Write the poem lines here"/></label>{!poem.trim()&&<div className="field-error">Poetry text is required.</div>}</Panel>
       <Panel><h2>Status &amp; Visibility</h2><p>Choose the initial card state and mark featured visibility when the card should be available for anonymous discovery.</p><div className="status-choice"><button type="button" className={status==='DRAFT'?'active':''} onClick={()=>setStatus('DRAFT')}><strong>DRAFT</strong><span>Hidden from users while content is still being prepared.</span></button><button type="button" className={status==='PUBLISHED'?'active':''} onClick={()=>setStatus('PUBLISHED')}><strong>PUBLISHED</strong><span>Available in normal browsing flows for eligible users.</span></button></div><label className="feature-row"><span><strong>Featured Card</strong><small>Featured cards are visible to anonymous users and may appear in public discovery areas across the product.</small></span><input type="checkbox" checked={featured} onChange={e=>setFeatured(e.target.checked)}/></label></Panel>
       <Panel><h2>Admin Notes</h2><p>Optional notes for internal editorial or review context.</p><label>Notes<textarea value={adminNotes} onChange={e=>setAdminNotes(e.target.value)} rows={5} placeholder="Private notes for future review"/></label></Panel>

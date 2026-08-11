@@ -17,26 +17,6 @@ export type AuthUser = {
   hasPassword?: boolean
 }
 
-export type CardCategory = {
-  id: string
-  name: string
-  slug: string
-  description?: string | null
-  isActive: boolean
-  sortOrder: number
-}
-
-
-export async function getCategories(): Promise<CardCategory[]> {
-  const response = await apiFetch(`${API_BASE}/categories`)
-
-  if (!response.ok) {
-    throw new Error('Unable to load categories')
-  }
-
-  return response.json()
-}
-
 export type RegisterInput = { fullName: string; email: string; phone?: string; password: string }
 
 function normalizeAuthUser(user: AuthUser): AuthUser {
@@ -103,6 +83,63 @@ export async function uploadProfilePhoto(file: File): Promise<AuthUser> {
 export async function removeProfilePhoto(): Promise<AuthUser> {
   const result = await authJson<{user:AuthUser}>('/profile/photo', {method:'DELETE'})
   return normalizeAuthUser(result.user)
+}
+
+
+export type TaxonomyItem = {
+  id: string
+  name: string
+  slug: string
+  description?: string | null
+  isActive: boolean
+  sortOrder: number
+  cardCount?: number
+}
+
+export type CardCategory = TaxonomyItem
+export type AdminCollection = TaxonomyItem
+
+export async function getCategories(): Promise<CardCategory[]> {
+  const response = await apiFetch(`${API_BASE}/categories`)
+  if (!response.ok) throw new Error('Unable to load categories')
+  return response.json()
+}
+
+async function adminTaxonomyJson(path: string, init: RequestInit = {}) {
+  const response = await apiFetch(`${API_BASE}${path}`, init)
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to save item')
+  return body
+}
+
+export async function adminGetCollections(): Promise<AdminCollection[]> {
+  return adminTaxonomyJson('/admin/collections')
+}
+export async function adminCreateCollection(input: Omit<AdminCollection, 'id' | 'cardCount'>): Promise<AdminCollection> {
+  return adminTaxonomyJson('/admin/collections', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input) })
+}
+export async function adminUpdateCollection(id:string, input: Omit<AdminCollection, 'id' | 'cardCount'>): Promise<AdminCollection> {
+  return adminTaxonomyJson(`/admin/collections/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input) })
+}
+export async function adminDeleteCollection(id:string): Promise<void> {
+  const response=await apiFetch(`${API_BASE}/admin/collections/${id}`,{method:'DELETE'})
+  const body=await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message??'Unable to delete collection')
+}
+
+export async function adminGetCategories(): Promise<CardCategory[]> {
+  return adminTaxonomyJson('/admin/categories')
+}
+export async function adminCreateCategory(input: Omit<CardCategory, 'id' | 'cardCount'>): Promise<CardCategory> {
+  return adminTaxonomyJson('/admin/categories', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input) })
+}
+export async function adminUpdateCategory(id:string, input: Omit<CardCategory, 'id' | 'cardCount'>): Promise<CardCategory> {
+  return adminTaxonomyJson(`/admin/categories/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input) })
+}
+export async function adminDeleteCategory(id:string): Promise<void> {
+  const response=await apiFetch(`${API_BASE}/admin/categories/${id}`,{method:'DELETE'})
+  const body=await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message??'Unable to delete category')
 }
 
 export async function getCollections(): Promise<LoveNoteCollection[]> {
