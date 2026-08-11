@@ -18,6 +18,7 @@ model Collection {
   updatedAt   DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+  @@map("collection")
 }
 
 model Card {
@@ -47,64 +48,67 @@ model Card {
 
   @@index([collectionId, isPublished])
   @@index([isPublished, createdAt])
+  @@map("card")
 }
 
 model User {
-  id           String               @id @default(cuid()) @db.VarChar(191)
-  fullName     String               @db.VarChar(191)
-  email        String               @unique @db.VarChar(191)
-  phone        String?              @db.VarChar(50)
-  passwordHash   String?              @db.VarChar(255)
-  googleSubject  String?              @unique @db.VarChar(191)
-  profileImageUrl String?              @db.VarChar(500)
-  lastLoginAt    DateTime?
-  role           String               @default("USER") @db.VarChar(32)
-  status       String               @default("ACTIVE") @db.VarChar(32)
-  joinedAt     DateTime             @default(now())
-  subscription Subscription?
-  payments     PaymentTransaction[]
-  poetryRequests PoetryRequest[]
-  cardOrders     CardOrder[]
+  id               String               @id @default(cuid()) @db.VarChar(191)
+  fullName         String               @db.VarChar(191)
+  email            String               @unique @db.VarChar(191)
+  phone            String?              @db.VarChar(50)
+  passwordHash     String?              @db.VarChar(255)
+  googleSubject    String?              @unique @db.VarChar(191)
+  profileImageUrl  String?              @db.VarChar(500)
+  lastLoginAt      DateTime?
+  role             String               @default("USER") @db.VarChar(32)
+  status           String               @default("ACTIVE") @db.VarChar(32)
+  joinedAt         DateTime             @default(now())
+  subscription     Subscription?
+  payments         PaymentTransaction[]
+  poetryRequests   PoetryRequest[]
+  cardOrders       CardOrder[]
   notificationJobs NotificationJob[]
-  authSessions AuthSession[]
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  authSessions     AuthSession[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   @@index([role, status])
   @@index([joinedAt])
+  @@map("user")
 }
 
-
 model AuthSession {
-  id        String   @id @default(cuid()) @db.VarChar(191)
-  userId    String   @db.VarChar(191)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique @db.Char(64)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid()) @db.VarChar(191)
+  userId     String   @db.VarChar(191)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique @db.Char(64)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
   @@index([userId, expiresAt])
   @@index([expiresAt])
+  @@map("authsession")
 }
 
 model Subscription {
-  id               String    @id @default(cuid()) @db.VarChar(191)
-  userId           String    @unique @db.VarChar(191)
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planName         String    @default("Monthly Access") @db.VarChar(120)
-  status           String    @default("INCOMPLETE") @db.VarChar(32)
-  paymentStatus    String    @default("NONE") @db.VarChar(32)
-  monthlyPrice     Decimal   @default(8.99) @db.Decimal(10, 2)
-  startedAt        DateTime?
-  currentPeriodEnd DateTime?
-  cancelledAt      DateTime?
+  id                String    @id @default(cuid()) @db.VarChar(191)
+  userId            String    @unique @db.VarChar(191)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planName          String    @default("Monthly Access") @db.VarChar(120)
+  status            String    @default("INCOMPLETE") @db.VarChar(32)
+  paymentStatus     String    @default("NONE") @db.VarChar(32)
+  monthlyPrice      Decimal   @default(8.99) @db.Decimal(10, 2)
+  startedAt         DateTime?
+  currentPeriodEnd  DateTime?
+  cancelledAt       DateTime?
   cancelAtPeriodEnd Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([status])
   @@index([paymentStatus])
+  @@map("subscription")
 }
 
 model PaymentTransaction {
@@ -121,8 +125,8 @@ model PaymentTransaction {
 
   @@index([userId, occurredAt])
   @@index([status, occurredAt])
+  @@map("paymenttransaction")
 }
-
 
 model Challenge {
   id                  String              @id @default(cuid()) @db.VarChar(191)
@@ -140,6 +144,7 @@ model Challenge {
   updatedAt           DateTime            @updatedAt
 
   @@index([status, challengeMonth])
+  @@map("challenge")
 }
 
 model ChallengeReminder {
@@ -153,110 +158,116 @@ model ChallengeReminder {
   createdAt   DateTime  @default(now())
 
   @@index([challengeId, dayOfMonth])
+  @@map("challengereminder")
 }
 
 model PoetryRequest {
-  id           String   @id @default(cuid()) @db.VarChar(191)
-  userId       String?  @db.VarChar(191)
-  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  requesterName String  @db.VarChar(191)
-  requesterEmail String @db.VarChar(191)
-  category     String   @db.VarChar(120)
-  occasion     String?  @db.VarChar(191)
-  prompt       String   @db.Text
-  status       String   @default("PENDING") @db.VarChar(32)
-  adminNotes   String?  @db.Text
-  completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String    @id @default(cuid()) @db.VarChar(191)
+  userId         String?   @db.VarChar(191)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requesterName  String    @db.VarChar(191)
+  requesterEmail String    @db.VarChar(191)
+  category       String    @db.VarChar(120)
+  occasion       String?   @db.VarChar(191)
+  prompt         String    @db.Text
+  status         String    @default("PENDING") @db.VarChar(32)
+  adminNotes     String?   @db.Text
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([category])
   @@index([userId])
+  @@map("poetryrequest")
 }
 
 model CardOrder {
-  id              String   @id @default(cuid()) @db.VarChar(191)
-  orderNumber     String   @unique @db.VarChar(80)
-  userId          String?  @db.VarChar(191)
-  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  customerName    String   @db.VarChar(191)
-  customerEmail   String   @db.VarChar(191)
-  cardTitle       String   @db.VarChar(191)
-  cardCategory    String?  @db.VarChar(120)
-  quantity        Int      @default(1)
-  shippingFee     Decimal? @db.Decimal(10, 2)
-  totalAmount     Decimal? @db.Decimal(10, 2)
-  status          String   @default("PLACED") @db.VarChar(32)
-  reviewed        Boolean  @default(false)
-  shippingName    String?  @db.VarChar(191)
-  shippingAddress String?  @db.Text
-  trackingNumber  String?  @db.VarChar(191)
-  placedAt        DateTime @default(now())
+  id              String    @id @default(cuid()) @db.VarChar(191)
+  orderNumber     String    @unique @db.VarChar(80)
+  userId          String?   @db.VarChar(191)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName    String    @db.VarChar(191)
+  customerEmail   String    @db.VarChar(191)
+  cardTitle       String    @db.VarChar(191)
+  cardCategory    String?   @db.VarChar(120)
+  quantity        Int       @default(1)
+  shippingFee     Decimal?  @db.Decimal(10, 2)
+  totalAmount     Decimal?  @db.Decimal(10, 2)
+  status          String    @default("PLACED") @db.VarChar(32)
+  reviewed        Boolean   @default(false)
+  shippingName    String?   @db.VarChar(191)
+  shippingAddress String?   @db.Text
+  trackingNumber  String?   @db.VarChar(191)
+  placedAt        DateTime  @default(now())
   shippedAt       DateTime?
   deliveredAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([status, placedAt])
   @@index([reviewed])
   @@index([userId])
+  @@map("cardorder")
 }
 
 model NotificationJob {
-  id              String   @id @default(cuid()) @db.VarChar(191)
-  channel         String   @default("EMAIL") @db.VarChar(20)
-  audience        String   @default("SINGLE_USER") @db.VarChar(32)
-  selectedUserId  String?  @db.VarChar(191)
-  selectedUser    User?    @relation(fields: [selectedUserId], references: [id], onDelete: SetNull)
-  recipientEmail  String?  @db.VarChar(191)
-  subject         String?  @db.VarChar(255)
-  message         String   @db.Text
-  status          String   @default("QUEUED") @db.VarChar(32)
-  totalRecipients Int      @default(0)
-  sentCount       Int      @default(0)
-  failedCount     Int      @default(0)
+  id              String    @id @default(cuid()) @db.VarChar(191)
+  channel         String    @default("EMAIL") @db.VarChar(20)
+  audience        String    @default("SINGLE_USER") @db.VarChar(32)
+  selectedUserId  String?   @db.VarChar(191)
+  selectedUser    User?     @relation(fields: [selectedUserId], references: [id], onDelete: SetNull)
+  recipientEmail  String?   @db.VarChar(191)
+  subject         String?   @db.VarChar(255)
+  message         String    @db.Text
+  status          String    @default("QUEUED") @db.VarChar(32)
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
   sentAt          DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([audience, createdAt])
   @@index([selectedUserId])
+  @@map("notificationjob")
 }
 
 model CommunityPost {
-  id              String              @id @default(cuid()) @db.VarChar(191)
-  authorId        String?             @db.VarChar(191)
-  authorName      String              @db.VarChar(191)
-  category        String              @default("General") @db.VarChar(120)
-  title           String              @db.VarChar(255)
-  body            String              @db.Text
-  status          String              @default("PUBLISHED") @db.VarChar(32)
-  isReported      Boolean             @default(false)
-  reportCount     Int                 @default(0)
-  responses       CommunityResponse[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id          String              @id @default(cuid()) @db.VarChar(191)
+  authorId    String?             @db.VarChar(191)
+  authorName  String              @db.VarChar(191)
+  category    String              @default("General") @db.VarChar(120)
+  title       String              @db.VarChar(255)
+  body        String              @db.Text
+  status      String              @default("PUBLISHED") @db.VarChar(32)
+  isReported  Boolean             @default(false)
+  reportCount Int                 @default(0)
+  responses   CommunityResponse[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@index([status, createdAt])
   @@index([isReported, createdAt])
+  @@map("communitypost")
 }
 
 model CommunityResponse {
-  id         String        @id @default(cuid()) @db.VarChar(191)
-  postId     String        @db.VarChar(191)
-  post       CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorName String        @db.VarChar(191)
-  body       String        @db.Text
-  status     String        @default("PUBLISHED") @db.VarChar(32)
-  isReported Boolean       @default(false)
-  reportCount Int          @default(0)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id          String        @id @default(cuid()) @db.VarChar(191)
+  postId      String        @db.VarChar(191)
+  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorName  String        @db.VarChar(191)
+  body        String        @db.Text
+  status      String        @default("PUBLISHED") @db.VarChar(32)
+  isReported  Boolean       @default(false)
+  reportCount Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([postId, createdAt])
   @@index([isReported, createdAt])
+  @@map("communityresponse")
 }
 
 model SystemSetting {
@@ -265,4 +276,6 @@ model SystemSetting {
   orderFeedbackEmail Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  @@map("systemsetting")
 }
