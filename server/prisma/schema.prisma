@@ -22,12 +22,13 @@ model Collection {
 }
 
 model Category {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
+  id          String   @id @default(cuid()) @db.VarChar(191)
+  name        String   @unique @db.VarChar(191)
+  slug        String   @unique @db.VarChar(191)
   description String?  @db.Text
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  cards       Card[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -40,6 +41,8 @@ model Card {
   slug             String     @unique @db.VarChar(191)
   collectionId     String     @db.VarChar(191)
   collection       Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  categoryId       String?    @db.VarChar(191)
+  category         Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   title            String     @db.VarChar(191)
   description      String     @default("") @db.Text
   pdfPath          String?    @db.VarChar(500)
@@ -61,6 +64,7 @@ model Card {
   updatedAt        DateTime   @updatedAt
 
   @@index([collectionId, isPublished])
+  @@index([categoryId])
   @@index([isPublished, createdAt])
   @@map("card")
 }

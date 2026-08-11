@@ -50,6 +50,8 @@ const publicCardSelect = {
   id: true,
   slug: true,
   collectionId: true,
+  categoryId: true,
+  category: { select: { id: true, name: true, slug: true } },
   title: true,
   description: true,
   pdfPath: true,
@@ -78,6 +80,8 @@ function cardDto(req: express.Request, card: any) {
     id: card.id,
     slug: card.slug,
     collectionId: card.collectionId,
+    categoryId: card.categoryId ?? null,
+    categoryName: card.category?.name ?? null,
     title: card.title,
     excerpt: card.description,
     previewImageUrl: absoluteAssetUrl(req, card.previewPath) ?? absoluteAssetUrl(req, card.pdfPath),
@@ -501,6 +505,31 @@ app.delete('/api/profile/photo', async(req,res)=>{ const auth=await getAuthentic
 // Everything below /api/admin requires a current ACTIVE administrator session.
 app.use('/api/admin', requireAdmin)
 
+
+const taxonomySchema = z.object({
+  name: z.string().trim().min(2).max(191),
+  slug: z.string().trim().min(1).max(191).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  description: z.string().max(4000).optional().nullable().default(''),
+  isActive: z.boolean().optional().default(true),
+  sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(0),
+})
+
+app.get('/api/admin/collections', async (_req,res)=>{
+  const items=await prisma.collection.findMany({orderBy:[{sortOrder:'asc'},{name:'asc'}],include:{_count:{select:{cards:true}}}})
+  res.json(items.map(i=>({...i,cardCount:i._count.cards,_count:undefined})))
+})
+app.post('/api/admin/collections', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid collection details.'});try{const item=await prisma.collection.create({data:{...parsed.data,description:parsed.data.description??''}});res.status(201).json({...item,cardCount:0})}catch(e){console.error(e);res.status(409).json({message:'Collection name or slug already exists.'})}})
+app.put('/api/admin/collections/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid collection details.'});try{const item=await prisma.collection.update({where:{id:req.params.id},data:{...parsed.data,description:parsed.data.description??''},include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update collection. Check name and slug.'})}})
+app.delete('/api/admin/collections/:id', async(req,res)=>{const count=await prisma.card.count({where:{collectionId:req.params.id}});if(count)return res.status(409).json({message:`This collection is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.collection.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Collection not found.'})}})
+
+app.get('/api/admin/categories', async (_req,res)=>{
+  const items=await prisma.category.findMany({orderBy:[{sortOrder:'asc'},{name:'asc'}],include:{_count:{select:{cards:true}}}})
+  res.json(items.map(i=>({...i,cardCount:i._count.cards,_count:undefined})))
+})
+app.post('/api/admin/categories', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.create({data:parsed.data});res.status(201).json({...item,cardCount:0})}catch(e){console.error(e);res.status(409).json({message:'Category name or slug already exists.'})}})
+app.put('/api/admin/categories/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.update({where:{id:req.params.id},data:parsed.data,include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update category. Check name and slug.'})}})
+app.delete('/api/admin/categories/:id', async(req,res)=>{const count=await prisma.card.count({where:{categoryId:req.params.id}});if(count)return res.status(409).json({message:`This category is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.category.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Category not found.'})}})
+
 app.get('/api/admin/cards', async (req, res) => {
   const cards = await prisma.card.findMany({ orderBy: { createdAt: 'desc' }, select: publicCardSelect })
   res.json(cards.map(card => cardDto(req, card)))
@@ -514,6 +543,7 @@ app.get('/api/admin/cards/:cardId', async (req, res) => {
 
 const cardFieldsSchema = z.object({
   collectionId: z.string().min(1),
+  categoryId: z.string().min(1),
   title: z.string().min(2).max(140),
   description: z.string().max(1000).optional().default(''),
   published: z.enum(['true', 'false']).optional().default('false'),
@@ -536,8 +566,9 @@ app.post('/api/admin/cards', upload.fields([
       return res.status(400).json({ message: 'Preview must be PNG, JPEG, or WebP.' })
     }
 
-    const collection = await prisma.collection.findUnique({ where: { id: fields.collectionId } })
+    const [collection,category] = await Promise.all([prisma.collection.findUnique({ where: { id: fields.collectionId } }),prisma.category.findUnique({where:{id:fields.categoryId}})])
     if (!collection) return res.status(400).json({ message: 'Invalid collection.' })
+    if (!category || !category.isActive) return res.status(400).json({ message: 'Invalid category.' })
 
     const pdfDoc = await PDFDocument.load(pdf.buffer)
     const pages = pdfDoc.getPages()
@@ -579,6 +610,7 @@ app.post('/api/admin/cards', upload.fields([
         id,
         slug,
         collectionId: fields.collectionId,
+        categoryId: fields.categoryId,
         title: fields.title,
         description: fields.description,
         pdfPath: pdfRelative,
@@ -607,6 +639,7 @@ app.post('/api/admin/cards', upload.fields([
 
 const designedCardSchema = z.object({
   collectionId: z.string().min(1),
+  categoryId: z.string().min(1),
   title: z.string().min(2).max(140),
   description: z.string().max(1000).optional().default(''),
   poemText: z.string().min(1).max(12000),
@@ -621,8 +654,12 @@ const designedCardSchema = z.object({
 app.post('/api/admin/cards/design', upload.none(), async (req, res) => {
   try {
     const fields = designedCardSchema.parse(req.body)
-    const collection = await prisma.collection.findUnique({ where: { id: fields.collectionId } })
+    const [collection, category] = await Promise.all([
+      prisma.collection.findUnique({ where: { id: fields.collectionId } }),
+      prisma.category.findUnique({ where: { id: fields.categoryId } }),
+    ])
     if (!collection) return res.status(400).json({ message: 'Invalid collection.' })
+    if (!category || !category.isActive) return res.status(400).json({ message: 'Invalid category.' })
     const id = randomUUID()
     const slugBase = fields.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'love-note'
     const parseJson = (v?:string) => { if(!v) return undefined; try { return JSON.parse(v) } catch { return undefined } }
@@ -631,6 +668,7 @@ app.post('/api/admin/cards/design', upload.none(), async (req, res) => {
         id,
         slug: `${slugBase}-${id.slice(0,8)}`,
         collectionId: fields.collectionId,
+        categoryId: fields.categoryId,
         title: fields.title,
         description: fields.description,
         poemText: fields.poemText,
@@ -659,11 +697,13 @@ app.post('/api/admin/cards/design', upload.none(), async (req, res) => {
 app.put('/api/admin/cards/:cardId/design', upload.none(), async (req, res) => {
   try {
     const fields = designedCardSchema.parse(req.body)
-    const [collection, existing] = await Promise.all([
+    const [collection, category, existing] = await Promise.all([
       prisma.collection.findUnique({ where: { id: fields.collectionId } }),
+      prisma.category.findUnique({ where: { id: fields.categoryId } }),
       prisma.card.findUnique({ where: { id: req.params.cardId } }),
     ])
     if (!collection) return res.status(400).json({ message: 'Invalid collection.' })
+    if (!category || !category.isActive) return res.status(400).json({ message: 'Invalid category.' })
     if (!existing) return res.status(404).json({ message: 'Card not found' })
     const parseJson = (v?: string) => { if (!v) return undefined; try { return JSON.parse(v) } catch { return undefined } }
     const frontLayout = parseJson(fields.frontLayout)
@@ -672,6 +712,7 @@ app.put('/api/admin/cards/:cardId/design', upload.none(), async (req, res) => {
       where: { id: req.params.cardId },
       data: {
         collectionId: fields.collectionId,
+        categoryId: fields.categoryId,
         title: fields.title,
         description: fields.description,
         poemText: fields.poemText,
