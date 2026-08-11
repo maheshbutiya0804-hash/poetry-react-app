@@ -179,12 +179,21 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/google', async (req, res) => {
   const parsed = googleLoginSchema.safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ message: 'Google credential is required.' })
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: 'Google credential is required.',
+    })
+  }
 
   const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim()
+
   if (!googleClientId) {
     console.error('GOOGLE_CLIENT_ID is not configured.')
-    return res.status(500).json({ message: 'Google sign-in is not configured.' })
+
+    return res.status(500).json({
+      message: 'Google sign-in is not configured.',
+    })
   }
 
   try {
@@ -192,63 +201,196 @@ app.post('/api/auth/google', async (req, res) => {
       idToken: parsed.data.credential,
       audience: googleClientId,
     })
-    const payload = ticket.getPayload()
-    const googleSubject = payload?.sub
-    const email = payload?.email ? normalizeEmail(payload.email) : ''
 
-    if (!googleSubject || !email || payload?.email_verified !== true) {
-      return res.status(401).json({ message: 'Google could not verify this email address.' })
+    const payload = ticket.getPayload()
+
+    const googleSubject = payload?.sub
+    const email = payload?.email
+      ? normalizeEmail(payload.email)
+      : ''
+
+    if (
+      !googleSubject ||
+      !email ||
+      payload?.email_verified !== true
+    ) {
+      return res.status(401).json({
+        message: 'Google could not verify this email address.',
+      })
     }
 
-    // Google recommends using the token's `sub` claim as the stable Google account identifier.
-    // If this Google account has not been linked yet, a verified email may link it to an
-    // existing HeartString account so users do not end up with duplicate accounts.
-    let user = await prisma.user.findUnique({ where: { googleSubject } })
+    /*
+     * Find existing Google account first.
+     */
+    let user = await prisma.user.findUnique({
+      where: {
+        googleSubject,
+      },
+    })
+
+    /*
+     * If Google account is not linked yet,
+     * check for an existing HeartString account
+     * using the verified email.
+     */
     if (!user) {
-      user = await prisma.user.findUnique({ where: { email } })
-      if (user?.googleSubject && user.googleSubject !== googleSubject) {
-        return res.status(409).json({ message: 'This email is already linked to another Google account.' })
+      user = await prisma.user.findUnique({
+        where: {
+          email,
+        },
+      })
+
+      if (
+        user?.googleSubject &&
+        user.googleSubject !== googleSubject
+      ) {
+        return res.status(409).json({
+          message:
+            'This email is already linked to another Google account.',
+        })
       }
     }
 
+    /*
+     * CREATE NEW USER
+     */
     if (!user) {
-      const fallbackName = email.split('@')[0] || 'HeartString Member'
+      const fallbackName =
+        email.split('@')[0] || 'HeartString Member'
+
       user = await prisma.user.create({
         data: {
-          fullName: payload?.name?.trim() || fallbackName,
+          fullName:
+            payload?.name?.trim() || fallbackName,
+
           email,
+
           phone: null,
           passwordHash: null,
+
           googleSubject,
-          profileImageUrl: payload?.picture || null,
+
+          profileImageUrl:
+            payload?.picture || null,
+
           role: 'USER',
           status: 'ACTIVE',
-          lastLoginAt: new Date(),
-        },
-      })
-    } else {
-      if (user.status !== 'ACTIVE') return res.status(403).json({ message: 'This account is not active.' })
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          googleSubject: user.googleSubject || googleSubject,
-          profileImageUrl: payload?.picture || user.profileImageUrl,
+
           lastLoginAt: new Date(),
         },
       })
     }
 
-    await prisma.authSession.deleteMany({ where: { userId: user.id, expiresAt: { lt: new Date() } } })
-    await createLoginSession(res, user.id)
-    res.json({ user: safeUser(user), isNewUser: user.passwordHash === null && user.googleSubject === googleSubject })
-  } catch (error) {
-  console.error("GOOGLE AUTH ERROR:", error);
+    /*
+     * UPDATE EXISTING USER
+     */
+    else {
+      if (user.status !== 'ACTIVE') {
+        return res.status(403).json({
+          message: 'This account is not active.',
+        })
+      }
 
-  res.status(401).json({
-    message: "Google sign-in could not be verified.",
-    error: error instanceof Error ? error.message : String(error),
-  });
-}
+      const updateData = {
+        googleSubject:
+          user.googleSubject || googleSubject,
+
+        profileImageUrl:
+          payload?.picture || user.profileImageUrl,
+
+        lastLoginAt: new Date(),
+      }
+
+      /*
+       * Bluehost/MySQL may occasionally return:
+       *
+       * 1615 - Prepared statement needs to be re-prepared
+       *
+       * Retry once after a short delay.
+       */
+      try {
+        user = await prisma.user.update({
+          where: {
+            id: user.id,
+          },
+
+          data: updateData,
+        })
+      } catch (updateError: any) {
+        const errorText =
+          `${updateError?.message || ''} ${updateError?.meta?.driverAdapterError?.message || ''}`
+
+        const isPreparedStatementError =
+          errorText.includes('1615') ||
+          errorText.includes(
+            'Prepared statement needs to be re-prepared',
+          )
+
+        if (!isPreparedStatementError) {
+          throw updateError
+        }
+
+        console.warn(
+          'MySQL prepared statement expired. Retrying user update...',
+        )
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, 250),
+        )
+
+        user = await prisma.user.update({
+          where: {
+            id: user.id,
+          },
+
+          data: updateData,
+        })
+      }
+    }
+
+    /*
+     * Remove expired sessions.
+     */
+    await prisma.authSession.deleteMany({
+      where: {
+        userId: user.id,
+
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    })
+
+    /*
+     * Create login session.
+     */
+    await createLoginSession(
+      res,
+      user.id,
+    )
+
+    return res.json({
+      user: safeUser(user),
+
+      isNewUser:
+        user.passwordHash === null &&
+        user.googleSubject === googleSubject,
+    })
+  } catch (error) {
+    console.error(
+      'GOOGLE AUTH ERROR:',
+      error,
+    )
+
+    /*
+     * Don't return internal database details
+     * to the browser in production.
+     */
+    return res.status(401).json({
+      message:
+        'Google sign-in could not be completed.',
+    })
+  }
 })
 
 app.get('/api/auth/me', async (req, res) => {
