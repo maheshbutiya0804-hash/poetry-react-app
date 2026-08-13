@@ -28,8 +28,8 @@ const upload = multer({
 
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://trinityimpact.com',
-  'https://www.trinityimpact.com',
+  'https://laurentine.co',
+  'https://www.laurentine.co',
 ]
 
 app.use(cors({

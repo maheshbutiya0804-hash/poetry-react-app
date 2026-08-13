@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
+    "html-to-image": "latest",
+    "jspdf": "^4.2.1",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",
-    "html-to-image": "latest",
-    "jspdf": "latest"
+    "typescript": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",
