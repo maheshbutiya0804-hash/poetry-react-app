@@ -101,9 +101,59 @@ function cardDto(req: express.Request, card: any) {
   }
 }
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }))
+app.get('/health', (_req, res) => res.json({ ok: true }))
 
-app.get('/api/collections', async (_req, res) => {
+// Stripe-hosted Checkout for the Laurentine Love Notes monthly subscription.
+// The Stripe secret key stays on the server; the browser receives only the Checkout URL.
+app.post('/billing/subscription-checkout', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Please sign in before subscribing.' })
+
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim()
+  const priceId = process.env.STRIPE_MONTHLY_PRICE_ID?.trim()
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://laurentine.co').replace(/\/$/, '')
+
+  if (!stripeSecretKey || !priceId) {
+    console.error('Stripe checkout is missing STRIPE_SECRET_KEY or STRIPE_MONTHLY_PRICE_ID.')
+    return res.status(500).json({ message: 'Subscription checkout is not configured.' })
+  }
+
+  try {
+    const params = new URLSearchParams()
+    params.set('mode', 'subscription')
+    params.set('payment_method_types[0]', 'card')
+    params.set('line_items[0][price]', priceId)
+    params.set('line_items[0][quantity]', '1')
+    params.set('customer_email', auth.email)
+    params.set('client_reference_id', auth.id)
+    params.set('metadata[userId]', auth.id)
+    params.set('subscription_data[metadata][userId]', auth.id)
+    params.set('success_url', `${frontendUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`)
+    params.set('cancel_url', `${frontendUrl}/subscription/cancelled`)
+
+    const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    })
+
+    const checkout = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string } }
+    if (!stripeResponse.ok || !checkout.url) {
+      console.error('Stripe checkout creation failed:', checkout.error?.message || checkout)
+      return res.status(502).json({ message: checkout.error?.message || 'Could not start Stripe checkout.' })
+    }
+
+    res.json({ sessionId: checkout.id, url: checkout.url })
+  } catch (error) {
+    console.error('Stripe checkout error:', error)
+    res.status(500).json({ message: 'Could not start subscription checkout.' })
+  }
+})
+
+app.get('/collections', async (_req, res) => {
   const collections = await prisma.collection.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
@@ -112,7 +162,7 @@ app.get('/api/collections', async (_req, res) => {
   res.json(collections.map(c => ({ ...c, cardCount: c._count.cards, _count: undefined })))
 })
 
-app.get('/api/collections/:collectionId/cards', async (req, res) => {
+app.get('/collections/:collectionId/cards', async (req, res) => {
   const cards = await prisma.card.findMany({
     where: { collectionId: req.params.collectionId, isPublished: true },
     orderBy: { createdAt: 'desc' },
@@ -121,7 +171,7 @@ app.get('/api/collections/:collectionId/cards', async (req, res) => {
   res.json(cards.map(card => cardDto(req, card)))
 })
 
-app.get('/api/categories', async (_req, res) => {
+app.get('/categories', async (_req, res) => {
   try {
     const categories = await prisma.category.findMany({
       where: { isActive: true },
@@ -141,7 +191,7 @@ app.get('/api/categories', async (_req, res) => {
     
     res.json(categories)
   } catch (error) {
-    console.error('GET /api/categories failed:', error)
+    console.error('GET /categories failed:', error)
 
     res.status(500).json({
       message: 'Could not load categories.',
@@ -149,7 +199,7 @@ app.get('/api/categories', async (_req, res) => {
   }
 })
 
-app.get('/api/cards/:cardId', async (req, res) => {
+app.get('/cards/:cardId', async (req, res) => {
   const card = await prisma.card.findFirst({
     where: { id: req.params.cardId, isPublished: true },
     select: publicCardSelect,
@@ -176,7 +226,7 @@ const googleLoginSchema = z.object({
 
 const googleClient = new OAuth2Client()
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/auth/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Please check the registration form.', issues: parsed.error.issues })
   const email = normalizeEmail(parsed.data.email)
@@ -204,7 +254,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 })
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/auth/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Email and password are required.' })
   const email = normalizeEmail(parsed.data.email)
@@ -225,7 +275,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
-app.post('/api/auth/google', async (req, res) => {
+app.post('/auth/google', async (req, res) => {
   const parsed = googleLoginSchema.safeParse(req.body)
 
   if (!parsed.success) {
@@ -441,7 +491,7 @@ app.post('/api/auth/google', async (req, res) => {
   }
 })
 
-app.get('/api/auth/me', async (req, res) => {
+app.get('/auth/me', async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req)
     if (!user) return res.status(401).json({ message: 'Not signed in.' })
@@ -452,7 +502,7 @@ app.get('/api/auth/me', async (req, res) => {
   }
 })
 
-app.post('/api/auth/logout', async (req, res) => {
+app.post('/auth/logout', async (req, res) => {
   try {
     await destroyLoginSession(req, res)
     res.status(204).end()
@@ -466,7 +516,7 @@ const profileSchema = z.object({ fullName: z.string().trim().min(2).max(191), ph
 const profilePasswordSchema = z.object({ currentPassword: z.string().optional(), newPassword: z.string().min(8).max(200) })
 const profilePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
-app.get('/api/profile', async (req, res) => {
+app.get('/profile', async (req, res) => {
   const auth = await getAuthenticatedUser(req)
   if (!auth) return res.status(401).json({ message: 'Authentication required.' })
   const user = await prisma.user.findUnique({ where: { id: auth.id }, include: { subscription: true } })
@@ -475,14 +525,14 @@ app.get('/api/profile', async (req, res) => {
   res.json({ user: userDto, subscription: user.subscription ? { planName:user.subscription.planName, status:user.subscription.status, monthlyPrice:Number(user.subscription.monthlyPrice), currentPeriodEnd:user.subscription.currentPeriodEnd, cancelAtPeriodEnd:user.subscription.cancelAtPeriodEnd } : null })
 })
 
-app.patch('/api/profile', async (req, res) => {
+app.patch('/profile', async (req, res) => {
   const auth = await getAuthenticatedUser(req); if (!auth) return res.status(401).json({ message:'Authentication required.' })
   const parsed=profileSchema.safeParse(req.body); if(!parsed.success) return res.status(400).json({message:'Please enter a valid name and phone number.'})
   const user=await prisma.user.update({where:{id:auth.id},data:{fullName:parsed.data.fullName,phone:parsed.data.phone||null}})
   res.json({user:safeUser(user)})
 })
 
-app.patch('/api/profile/password', async (req,res)=>{
+app.patch('/profile/password', async (req,res)=>{
   const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
   const parsed=profilePasswordSchema.safeParse(req.body); if(!parsed.success)return res.status(400).json({message:'Please enter a valid new password.'})
   const policy=passwordPolicyError(parsed.data.newPassword); if(policy)return res.status(400).json({message:policy})
@@ -491,7 +541,7 @@ app.patch('/api/profile/password', async (req,res)=>{
   await prisma.user.update({where:{id:user.id},data:{passwordHash:await hashPassword(parsed.data.newPassword)}}); res.json({ok:true})
 })
 
-app.post('/api/profile/photo', profilePhotoUpload.single('photo'), async (req,res)=>{
+app.post('/profile/photo', profilePhotoUpload.single('photo'), async (req,res)=>{
   const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
   if(!req.file)return res.status(400).json({message:'Choose a profile photo.'})
   const allowed:{[key:string]:string}={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp'}; const ext=allowed[req.file.mimetype]
@@ -500,10 +550,10 @@ app.post('/api/profile/photo', profilePhotoUpload.single('photo'), async (req,re
   const relative=`profiles/${filename}`; const user=await prisma.user.update({where:{id:auth.id},data:{profileImageUrl:relative}}); const dto=safeUser(user); dto.profileImageUrl=absoluteAssetUrl(req,relative); res.json({user:dto})
 })
 
-app.delete('/api/profile/photo', async(req,res)=>{ const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'}); const user=await prisma.user.update({where:{id:auth.id},data:{profileImageUrl:null}}); res.json({user:safeUser(user)}) })
+app.delete('/profile/photo', async(req,res)=>{ const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'}); const user=await prisma.user.update({where:{id:auth.id},data:{profileImageUrl:null}}); res.json({user:safeUser(user)}) })
 
-// Everything below /api/admin requires a current ACTIVE administrator session.
-app.use('/api/admin', requireAdmin)
+// Everything below /admin requires a current ACTIVE administrator session.
+app.use('/admin', requireAdmin)
 
 
 const taxonomySchema = z.object({
@@ -514,28 +564,28 @@ const taxonomySchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(0),
 })
 
-app.get('/api/admin/collections', async (_req,res)=>{
+app.get('/admin/collections', async (_req,res)=>{
   const items=await prisma.collection.findMany({orderBy:[{sortOrder:'asc'},{name:'asc'}],include:{_count:{select:{cards:true}}}})
   res.json(items.map(i=>({...i,cardCount:i._count.cards,_count:undefined})))
 })
-app.post('/api/admin/collections', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid collection details.'});try{const item=await prisma.collection.create({data:{...parsed.data,description:parsed.data.description??''}});res.status(201).json({...item,cardCount:0})}catch(e){console.error(e);res.status(409).json({message:'Collection name or slug already exists.'})}})
-app.put('/api/admin/collections/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid collection details.'});try{const item=await prisma.collection.update({where:{id:req.params.id},data:{...parsed.data,description:parsed.data.description??''},include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update collection. Check name and slug.'})}})
-app.delete('/api/admin/collections/:id', async(req,res)=>{const count=await prisma.card.count({where:{collectionId:req.params.id}});if(count)return res.status(409).json({message:`This collection is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.collection.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Collection not found.'})}})
+app.post('/admin/collections', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid collection details.'});try{const item=await prisma.collection.create({data:{...parsed.data,description:parsed.data.description??''}});res.status(201).json({...item,cardCount:0})}catch(e){console.error(e);res.status(409).json({message:'Collection name or slug already exists.'})}})
+app.put('/admin/collections/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid collection details.'});try{const item=await prisma.collection.update({where:{id:req.params.id},data:{...parsed.data,description:parsed.data.description??''},include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update collection. Check name and slug.'})}})
+app.delete('/admin/collections/:id', async(req,res)=>{const count=await prisma.card.count({where:{collectionId:req.params.id}});if(count)return res.status(409).json({message:`This collection is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.collection.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Collection not found.'})}})
 
-app.get('/api/admin/categories', async (_req,res)=>{
+app.get('/admin/categories', async (_req,res)=>{
   const items=await prisma.category.findMany({orderBy:[{sortOrder:'asc'},{name:'asc'}],include:{_count:{select:{cards:true}}}})
   res.json(items.map(i=>({...i,cardCount:i._count.cards,_count:undefined})))
 })
-app.post('/api/admin/categories', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.create({data:parsed.data});res.status(201).json({...item,cardCount:0})}catch(e){console.error(e);res.status(409).json({message:'Category name or slug already exists.'})}})
-app.put('/api/admin/categories/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.update({where:{id:req.params.id},data:parsed.data,include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update category. Check name and slug.'})}})
-app.delete('/api/admin/categories/:id', async(req,res)=>{const count=await prisma.card.count({where:{categoryId:req.params.id}});if(count)return res.status(409).json({message:`This category is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.category.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Category not found.'})}})
+app.post('/admin/categories', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.create({data:parsed.data});res.status(201).json({...item,cardCount:0})}catch(e){console.error(e);res.status(409).json({message:'Category name or slug already exists.'})}})
+app.put('/admin/categories/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.update({where:{id:req.params.id},data:parsed.data,include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update category. Check name and slug.'})}})
+app.delete('/admin/categories/:id', async(req,res)=>{const count=await prisma.card.count({where:{categoryId:req.params.id}});if(count)return res.status(409).json({message:`This category is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.category.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Category not found.'})}})
 
-app.get('/api/admin/cards', async (req, res) => {
+app.get('/admin/cards', async (req, res) => {
   const cards = await prisma.card.findMany({ orderBy: { createdAt: 'desc' }, select: publicCardSelect })
   res.json(cards.map(card => cardDto(req, card)))
 })
 
-app.get('/api/admin/cards/:cardId', async (req, res) => {
+app.get('/admin/cards/:cardId', async (req, res) => {
   const card = await prisma.card.findUnique({ where: { id: req.params.cardId }, select: publicCardSelect })
   if (!card) return res.status(404).json({ message: 'Card not found' })
   res.json(cardDto(req, card))
@@ -549,7 +599,7 @@ const cardFieldsSchema = z.object({
   published: z.enum(['true', 'false']).optional().default('false'),
 })
 
-app.post('/api/admin/cards', upload.fields([
+app.post('/admin/cards', upload.fields([
   { name: 'pdf', maxCount: 1 },
   { name: 'preview', maxCount: 1 },
 ]), async (req, res) => {
@@ -651,7 +701,7 @@ const designedCardSchema = z.object({
   backLayout: z.string().optional(),
 })
 
-app.post('/api/admin/cards/design', upload.none(), async (req, res) => {
+app.post('/admin/cards/design', upload.none(), async (req, res) => {
   try {
     const fields = designedCardSchema.parse(req.body)
     const [collection, category] = await Promise.all([
@@ -694,7 +744,7 @@ app.post('/api/admin/cards/design', upload.none(), async (req, res) => {
   }
 })
 
-app.put('/api/admin/cards/:cardId/design', upload.none(), async (req, res) => {
+app.put('/admin/cards/:cardId/design', upload.none(), async (req, res) => {
   try {
     const fields = designedCardSchema.parse(req.body)
     const [collection, category, existing] = await Promise.all([
@@ -733,7 +783,7 @@ app.put('/api/admin/cards/:cardId/design', upload.none(), async (req, res) => {
   }
 })
 
-app.patch('/api/admin/cards/:cardId/publish', async (req, res) => {
+app.patch('/admin/cards/:cardId/publish', async (req, res) => {
   const body = z.object({ published: z.boolean() }).safeParse(req.body)
   if (!body.success) return res.status(400).json({ message: 'published must be boolean' })
   try {
@@ -748,7 +798,7 @@ app.patch('/api/admin/cards/:cardId/publish', async (req, res) => {
   }
 })
 
-app.delete('/api/admin/cards/:cardId', async (req, res) => {
+app.delete('/admin/cards/:cardId', async (req, res) => {
   try {
     const card = await prisma.card.delete({ where: { id: req.params.cardId } })
     const folder = path.join(cardsRoot, card.id)
@@ -763,7 +813,7 @@ app.delete('/api/admin/cards/:cardId', async (req, res) => {
 
 const userStatusSchema = z.object({ status: z.enum(['ACTIVE', 'BLOCKED']) })
 
-app.get('/api/admin/overview', async (_req, res) => {
+app.get('/admin/overview', async (_req, res) => {
   const startOfMonth = new Date()
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
@@ -790,7 +840,7 @@ app.get('/api/admin/overview', async (_req, res) => {
   })
 })
 
-app.get('/api/admin/users', async (req, res) => {
+app.get('/admin/users', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const role = String(req.query.role ?? '').trim()
   const status = String(req.query.status ?? '').trim()
@@ -841,7 +891,7 @@ app.get('/api/admin/users', async (req, res) => {
   })
 })
 
-app.patch('/api/admin/users/:userId/status', async (req, res) => {
+app.patch('/admin/users/:userId/status', async (req, res) => {
   const parsed = userStatusSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'status must be ACTIVE or BLOCKED' })
   try {
@@ -865,7 +915,7 @@ app.patch('/api/admin/users/:userId/status', async (req, res) => {
   }
 })
 
-app.get('/api/admin/subscriptions', async (req, res) => {
+app.get('/admin/subscriptions', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
 
@@ -949,7 +999,7 @@ app.get('/api/admin/subscriptions', async (req, res) => {
 
 
 
-app.get('/api/admin/users/:userId', async (req, res) => {
+app.get('/admin/users/:userId', async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.params.userId },
     include: {
@@ -1020,7 +1070,7 @@ function challengeDto(req: express.Request, challenge: any) {
   }
 }
 
-app.get('/api/admin/challenges', async (req, res) => {
+app.get('/admin/challenges', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const month = String(req.query.month ?? '').trim()
@@ -1048,7 +1098,7 @@ app.get('/api/admin/challenges', async (req, res) => {
   res.json({ summary: { total, drafts, published }, challenges: challenges.map(c => challengeDto(req, c)) })
 })
 
-app.get('/api/admin/challenges/:challengeId', async (req, res) => {
+app.get('/admin/challenges/:challengeId', async (req, res) => {
   const challenge = await prisma.challenge.findUnique({
     where: { id: req.params.challengeId },
     include: { reminders: { orderBy: { dayOfMonth: 'asc' } } },
@@ -1057,7 +1107,7 @@ app.get('/api/admin/challenges/:challengeId', async (req, res) => {
   res.json(challengeDto(req, challenge))
 })
 
-app.post('/api/admin/challenges', upload.single('image'), async (req, res) => {
+app.post('/admin/challenges', upload.single('image'), async (req, res) => {
   try {
     const fields = challengeSchema.parse(req.body)
     const image = req.file
@@ -1107,7 +1157,7 @@ app.post('/api/admin/challenges', upload.single('image'), async (req, res) => {
   }
 })
 
-app.patch('/api/admin/challenges/:challengeId/status', async (req, res) => {
+app.patch('/admin/challenges/:challengeId/status', async (req, res) => {
   const parsed = z.object({ status: z.enum(['DRAFT', 'PUBLISHED']) }).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid challenge status.' })
   try {
@@ -1125,7 +1175,7 @@ app.patch('/api/admin/challenges/:challengeId/status', async (req, res) => {
   }
 })
 
-app.delete('/api/admin/challenges/:challengeId', async (req, res) => {
+app.delete('/admin/challenges/:challengeId', async (req, res) => {
   try {
     const challenge = await prisma.challenge.delete({ where: { id: req.params.challengeId } })
     const folder = path.join(challengesRoot, challenge.id)
@@ -1140,7 +1190,7 @@ app.delete('/api/admin/challenges/:challengeId', async (req, res) => {
 const requestStatusSchema = z.object({ status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']) })
 const orderStatusSchema = z.object({ status: z.enum(['PLACED', 'QUOTED', 'IN_PROGRESS', 'SHIPPED', 'DELIVERED', 'CANCELLED']) })
 
-app.get('/api/admin/requests', async (req, res) => {
+app.get('/admin/requests', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const category = String(req.query.category ?? '').trim()
@@ -1169,7 +1219,7 @@ app.get('/api/admin/requests', async (req, res) => {
   })
 })
 
-app.patch('/api/admin/requests/:requestId/status', async (req, res) => {
+app.patch('/admin/requests/:requestId/status', async (req, res) => {
   const parsed = requestStatusSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid request status.' })
   try {
@@ -1183,7 +1233,7 @@ app.patch('/api/admin/requests/:requestId/status', async (req, res) => {
   }
 })
 
-app.get('/api/admin/orders', async (req, res) => {
+app.get('/admin/orders', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const reviewedOnly = String(req.query.reviewedOnly ?? '') === 'true'
@@ -1212,13 +1262,13 @@ app.get('/api/admin/orders', async (req, res) => {
   })
 })
 
-app.get('/api/admin/orders/:orderId', async (req, res) => {
+app.get('/admin/orders/:orderId', async (req, res) => {
   const order = await prisma.cardOrder.findUnique({ where: { id: req.params.orderId } })
   if (!order) return res.status(404).json({ message: 'Order not found' })
   res.json({ ...order, shippingFee: order.shippingFee == null ? null : Number(order.shippingFee), totalAmount: order.totalAmount == null ? null : Number(order.totalAmount) })
 })
 
-app.patch('/api/admin/orders/:orderId/status', async (req, res) => {
+app.patch('/admin/orders/:orderId/status', async (req, res) => {
   const parsed = orderStatusSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid order status.' })
   try {
@@ -1233,7 +1283,7 @@ app.patch('/api/admin/orders/:orderId/status', async (req, res) => {
   }
 })
 
-app.patch('/api/admin/orders/:orderId/reviewed', async (req, res) => {
+app.patch('/admin/orders/:orderId/reviewed', async (req, res) => {
   const parsed = z.object({ reviewed: z.boolean() }).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid reviewed value.' })
   try {
@@ -1256,7 +1306,7 @@ const notificationSchema = z.object({
   message: z.string().min(1).max(20000),
 })
 
-app.get('/api/admin/notifications', async (req, res) => {
+app.get('/admin/notifications', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const audience = String(req.query.audience ?? '').trim()
@@ -1277,7 +1327,7 @@ app.get('/api/admin/notifications', async (req, res) => {
   res.json({ jobs })
 })
 
-app.post('/api/admin/notifications', async (req, res) => {
+app.post('/admin/notifications', async (req, res) => {
   const parsed = notificationSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid notification data.', issues: parsed.error.issues })
   const data = parsed.data
@@ -1317,7 +1367,7 @@ app.post('/api/admin/notifications', async (req, res) => {
   res.status(201).json(job)
 })
 
-app.patch('/api/admin/notifications/:jobId/status', async (req, res) => {
+app.patch('/admin/notifications/:jobId/status', async (req, res) => {
   const parsed = z.object({ status: z.enum(['QUEUED','SENDING','SENT','FAILED','CANCELLED']) }).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid notification status.' })
   try {
@@ -1332,7 +1382,7 @@ app.patch('/api/admin/notifications/:jobId/status', async (req, res) => {
   }
 })
 
-app.get('/api/admin/community', async (req, res) => {
+app.get('/admin/community', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const reportedOnly = String(req.query.reportedOnly ?? '') === 'true'
@@ -1359,7 +1409,7 @@ app.get('/api/admin/community', async (req, res) => {
   res.json({ summary: { totalPosts, reportedPosts, reportedResponses }, posts })
 })
 
-app.patch('/api/admin/community/posts/:postId', async (req, res) => {
+app.patch('/admin/community/posts/:postId', async (req, res) => {
   const parsed = z.object({
     status: z.enum(['PUBLISHED','HIDDEN','REMOVED']).optional(),
     clearReport: z.boolean().optional(),
@@ -1380,7 +1430,7 @@ app.patch('/api/admin/community/posts/:postId', async (req, res) => {
   }
 })
 
-app.patch('/api/admin/community/responses/:responseId', async (req, res) => {
+app.patch('/admin/community/responses/:responseId', async (req, res) => {
   const parsed = z.object({
     status: z.enum(['PUBLISHED','HIDDEN','REMOVED']).optional(),
     clearReport: z.boolean().optional(),
@@ -1400,7 +1450,7 @@ app.patch('/api/admin/community/responses/:responseId', async (req, res) => {
   }
 })
 
-app.get('/api/admin/settings', async (_req, res) => {
+app.get('/admin/settings', async (_req, res) => {
   const settings = await prisma.systemSetting.upsert({
     where: { id: 'platform' },
     update: {},
@@ -1409,7 +1459,7 @@ app.get('/api/admin/settings', async (_req, res) => {
   res.json({ ...settings, defaultPrintingFee: Number(settings.defaultPrintingFee) })
 })
 
-app.put('/api/admin/settings', async (req, res) => {
+app.put('/admin/settings', async (req, res) => {
   const parsed = z.object({
     defaultPrintingFee: z.coerce.number().min(0).max(9999),
     orderFeedbackEmail: z.boolean(),
@@ -1431,7 +1481,7 @@ app.listen(port, () => {
 })
 
 // Authenticated customer order tracking
-app.get('/api/orders', async (req,res)=>{
+app.get('/orders', async (req,res)=>{
   const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
   const search=String(req.query.search??'').trim(), status=String(req.query.status??'').trim()
   const where:any={userId:auth.id}; if(status)where.status=status
@@ -1442,12 +1492,12 @@ app.get('/api/orders', async (req,res)=>{
   const dto=(o:any)=>({...o,shippingFee:o.shippingFee==null?null:Number(o.shippingFee),totalAmount:o.totalAmount==null?null:Number(o.totalAmount),previewUrl:previews.get(o.cardTitle)??null})
   res.json({summary:{activeOrders:all.filter(o=>!['DELIVERED','CANCELLED'].includes(o.status)).length,totalCardsOrdered:all.reduce((n,o)=>n+o.quantity,0),deliveredTotal:all.filter(o=>o.status==='DELIVERED').reduce((n,o)=>n+o.quantity,0)},orders:orders.map(dto)})
 })
-app.get('/api/orders/:orderId',async(req,res)=>{
+app.get('/orders/:orderId',async(req,res)=>{
  const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
  const o=await prisma.cardOrder.findFirst({where:{id:req.params.orderId,userId:auth.id}}); if(!o)return res.status(404).json({message:'Order not found.'})
  res.json({...o,shippingFee:o.shippingFee==null?null:Number(o.shippingFee),totalAmount:o.totalAmount==null?null:Number(o.totalAmount)})
 })
-app.patch('/api/orders/:orderId/cancel',async(req,res)=>{
+app.patch('/orders/:orderId/cancel',async(req,res)=>{
  const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
  const o=await prisma.cardOrder.findFirst({where:{id:req.params.orderId,userId:auth.id}}); if(!o)return res.status(404).json({message:'Order not found.'})
  if(!['PLACED','QUOTED'].includes(o.status))return res.status(400).json({message:'This order can no longer be cancelled.'})
