@@ -21,7 +21,7 @@ export function LoveNotesPage() {
       <section className="hs-page-hero">
         <p>Love Notes</p>
         <h1>Choose a collection.</h1>
-        <span>The catalog below is now loaded from the HeartString database.</span>
+        <span>Browse Laurentine Love Notes by collection.</span>
       </section>
       <section className="hs-content">
         {error ? <LoadingBlock text={error} /> : !collections.length ? <LoadingBlock /> : (

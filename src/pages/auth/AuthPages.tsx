@@ -106,7 +106,7 @@ export function RegisterPage() {
         <aside className="register-art-panel" aria-hidden="true">
           <div className="register-card-art"><div className="register-shadow-card"/><div className="register-poem-card"><p>Some bonds don’t need<br/>words.<br/>They live in the little<br/>things,<br/>without needing to<br/>explain.</p></div></div>
           <p className="register-art-copy">Words that carry weight.<br/>Moments that deserve<br/>more than silence.</p>
-          <span className="register-art-brand">HEARTSTRING NOTES</span>
+          <span className="register-art-brand">LAURENTINE</span>
         </aside>
         <section className="register-form-panel" aria-labelledby="register-title">
           <h1 id="register-title">Begin Your<br/>Collection.</h1>
