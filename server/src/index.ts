@@ -661,9 +661,11 @@ async function generatePdfPreview(pdfBuffer: Buffer, outputPath: string) {
   globals.Path2D ??= canvasModule.Path2D
 
   const loadingTask = pdfjs.getDocument({ data: new Uint8Array(pdfBuffer), disableWorker: true })
-  const pdf = await loadingTask.promise
+  let pdf: any = null
+  let page: any = null
   try {
-    const page = await pdf.getPage(1)
+    pdf = await loadingTask.promise
+    page = await pdf.getPage(1)
     const natural = page.getViewport({ scale: 1 })
     const maxWidth = 1200
     const maxHeight = 1600
@@ -678,7 +680,24 @@ async function generatePdfPreview(pdfBuffer: Buffer, outputPath: string) {
     const jpeg = await canvas.encode('jpeg', 82)
     await fs.writeFile(outputPath, jpeg)
   } finally {
-    await pdf.destroy()
+    // Cleanup must never turn a successfully-rendered preview into a failed import.
+    // pdfjs-dist exposes cleanup/destroy differently across builds, so guard every call.
+    try {
+      if (page && typeof page.cleanup === 'function') page.cleanup()
+    } catch (cleanupError) {
+      console.warn('PDF page cleanup warning:', cleanupError)
+    }
+    try {
+      if (pdf && typeof pdf.cleanup === 'function') await pdf.cleanup()
+    } catch (cleanupError) {
+      console.warn('PDF document cleanup warning:', cleanupError)
+    }
+    try {
+      if (pdf && typeof pdf.destroy === 'function') await pdf.destroy()
+      else if (loadingTask && typeof (loadingTask as any).destroy === 'function') await (loadingTask as any).destroy()
+    } catch (cleanupError) {
+      console.warn('PDF loading-task cleanup warning:', cleanupError)
+    }
   }
 }
 
