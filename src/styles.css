@@ -626,3 +626,4 @@ body,.hs-site{background:var(--laurentine-ivory);color:var(--laurentine-charcoal
   .hsref-cta{height:337px;background:#17392f}.hsref-cta .hsref-kicker{margin-bottom:19px!important}.hsref-cta h2{margin-bottom:14px;font-size:50px}.hsref-cta>p:not(.hsref-kicker){margin-bottom:25px;font-size:12px}.hsref-cta>a{min-height:47px;padding:0 23px;font-size:11px;background:#fcfaf7}
   .hsref-footer{height:107px;min-height:107px;padding:0 38px}.hsref-footer .reference-footer-brand .brand-logo-icon{width:27px;height:27px}.hsref-footer .reference-footer-brand .brand-wordmark{font-size:19px}.hsref-footer .reference-footer-brand p{font-size:10px}.hsref-footer .reference-footer-nav{gap:16px;font-size:11px}
 }
+.reference-pdf-actions{display:grid;gap:10px}.reference-pdf-actions .reference-subscribe-button{text-decoration:none;text-align:center}.reference-pdf-actions .reference-demo-download{text-align:center}

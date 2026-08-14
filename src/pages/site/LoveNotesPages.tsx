@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { LoveNoteCard } from '../../components/love-notes/LoveNoteCard'
 import type { LoveNoteCard as LoveNoteCardType, LoveNoteCollection } from '../../types/loveNote'
-import { createSubscriptionCheckout, getCard, getCollectionCards, getCollections } from '../../services/api'
+import { cardPdfUrl, createSubscriptionCheckout, getCard, getCollectionCards, getCollections, getProfile } from '../../services/api'
 import { useAuth } from '../../auth/AuthContext'
 
 function LoadingBlock({ text = 'Loading…' }: { text?: string }) {
@@ -101,6 +101,7 @@ export function LoveNoteDetailPage() {
   const navigate = useNavigate()
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
+  const [hasAccess, setHasAccess] = useState(false)
   const [card, setCard] = useState<LoveNoteCardType | null>(null)
   const [collectionCards, setCollectionCards] = useState<LoveNoteCardType[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,6 +118,11 @@ export function LoveNoteDetailPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
   }, [cardId])
+
+  useEffect(() => {
+    if (!user) { setHasAccess(false); return }
+    getProfile().then(profile => setHasAccess(profile.subscription?.status === 'ACTIVE')).catch(() => setHasAccess(false))
+  }, [user])
 
   const related = useMemo(() => collectionCards.filter(item => item.id !== card?.id).slice(0, 3), [collectionCards, card])
 
@@ -150,11 +156,13 @@ export function LoveNoteDetailPage() {
         <div className="reference-preview-column">
           <div className="protected-card-shell">
             <LoveNoteCard card={card} eager />
-            <div className="protected-fade" aria-hidden="true" />
-            <div className="protected-message">
-              <strong>PROTECTED PREVIEW</strong>
-              <p>This poem is softly protected in preview mode.<br/>Subscribe to view the full card and unlock clean downloads.</p>
-            </div>
+            {!hasAccess && <>
+              <div className="protected-fade" aria-hidden="true" />
+              <div className="protected-message">
+                <strong>PROTECTED PREVIEW</strong>
+                <p>This card is softly protected in preview mode.<br/>Subscribe to view the original PDF and unlock downloads.</p>
+              </div>
+            </>}
           </div>
           <p className="reference-card-spec">5 × 7 inches · landscape · front only</p>
         </div>
@@ -163,10 +171,16 @@ export function LoveNoteDetailPage() {
           <span className="reference-category-pill">○ Love</span>
           <h1>{card.title}</h1>
           <p className="reference-card-description">{card.excerpt}</p>
-          <button className="reference-subscribe-button" type="button" onClick={subscribe} disabled={checkoutLoading || authLoading}>{checkoutLoading ? 'Opening secure checkout…' : 'Subscribe for Full Access – $8.99/month'}</button>
+          {hasAccess ? (
+            <div className="reference-pdf-actions">
+              <a className="reference-subscribe-button" href={cardPdfUrl(card.id)} target="_blank" rel="noreferrer">View Full PDF</a>
+              <a className="reference-demo-download" href={cardPdfUrl(card.id, true)}>Download PDF</a>
+            </div>
+          ) : (
+            <button className="reference-subscribe-button" type="button" onClick={subscribe} disabled={checkoutLoading || authLoading}>{checkoutLoading ? 'Opening secure checkout…' : 'Subscribe for Full Access – $8.99/month'}</button>
+          )}
           {checkoutError && <p className="auth-error" role="alert">{checkoutError}</p>}
-          <p className="reference-save-note">Customization and downloads are available after saving, from the Saved Library page.</p>
-          {card.pdfUrl&&<a className="reference-demo-download" href={card.pdfUrl} download={`${card.slug ?? card.id}.pdf`}>Developer preview: download source PDF</a>}
+          <p className="reference-save-note">{hasAccess ? 'Your subscription is active. The original print-ready PDF is unlocked.' : 'Full PDF viewing and downloads are available to active subscribers.'}</p>
         </aside>
       </section>
 

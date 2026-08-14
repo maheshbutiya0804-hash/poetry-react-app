@@ -63,6 +63,11 @@ export async function authLogout(): Promise<void> {
   if (!response.ok && response.status !== 401) throw new Error('Could not sign out')
 }
 
+
+export function cardPdfUrl(cardId: string, download = false): string {
+  return `${API_BASE}/cards/${encodeURIComponent(cardId)}/pdf${download ? '?download=1' : ''}`
+}
+
 export type ProfileData = {
   user: AuthUser
   subscription: { planName: string; status: string; monthlyPrice: number; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null

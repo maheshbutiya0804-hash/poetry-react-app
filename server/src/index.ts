@@ -60,7 +60,17 @@ app.use(cors({
 }))
 
 app.use(express.json())
-app.use('/uploads', express.static(storageRoot))
+// Public assets are intentionally limited. Original card PDFs and ZIP imports stay private.
+app.use('/uploads/cards',
+  (req, res, next) => {
+    // Never expose original PDFs through the public /uploads route.
+    if (req.path.toLowerCase().endsWith('.pdf')) return res.status(403).json({ message: 'Subscription required.' })
+    next()
+  },
+  express.static(cardsRoot, { fallthrough: true })
+)
+app.use('/uploads/profiles', express.static(path.join(storageRoot, 'profiles')))
+app.use('/uploads/challenges', express.static(challengesRoot))
 
 const publicCardSelect = {
   id: true,
@@ -100,8 +110,9 @@ function cardDto(req: express.Request, card: any) {
     categoryName: card.category?.name ?? null,
     title: card.title,
     excerpt: card.description,
-    previewImageUrl: absoluteAssetUrl(req, card.previewPath) ?? absoluteAssetUrl(req, card.pdfPath),
-    pdfUrl: absoluteAssetUrl(req, card.pdfPath),
+    previewImageUrl: absoluteAssetUrl(req, card.previewPath) ?? '',
+    // Original PDF is subscriber-only and is never exposed as a public storage URL.
+    pdfUrl: null,
     poemText: card.poemText ?? '',
     adminNotes: card.adminNotes ?? '',
     isFeatured: card.isFeatured ?? false,
@@ -213,6 +224,40 @@ app.get('/categories', async (_req, res) => {
       message: 'Could not load categories.',
     })
   }
+})
+
+async function requireActiveSubscription(req: express.Request, res: express.Response) {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) {
+    res.status(401).json({ message: 'Sign in to access this card.' })
+    return null
+  }
+  const subscription = await prisma.subscription.findUnique({ where: { userId: auth.id } })
+  const active = subscription?.status === 'ACTIVE' && (!subscription.currentPeriodEnd || subscription.currentPeriodEnd > new Date())
+  if (!active) {
+    res.status(403).json({ message: 'An active subscription is required to access the original PDF.' })
+    return null
+  }
+  return auth
+}
+
+app.get('/cards/:cardId/pdf', async (req, res) => {
+  const auth = await requireActiveSubscription(req, res)
+  if (!auth) return
+  const card = await prisma.card.findFirst({
+    where: { id: req.params.cardId, isPublished: true },
+    select: { id: true, slug: true, title: true, pdfPath: true, originalFileName: true },
+  })
+  if (!card?.pdfPath) return res.status(404).json({ message: 'PDF not found.' })
+  const absolute = path.resolve(storageRoot, card.pdfPath)
+  const allowedRoot = path.resolve(cardsRoot) + path.sep
+  if (!absolute.startsWith(allowedRoot) || !existsSync(absolute)) return res.status(404).json({ message: 'PDF not found.' })
+  const download = String(req.query.download || '') === '1'
+  const safeName = (card.originalFileName || `${card.slug || card.id}.pdf`).replace(/[\r\n"\\/]/g, '-')
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${safeName}"`)
+  createReadStream(absolute).pipe(res)
 })
 
 app.get('/cards/:cardId', async (req, res) => {
@@ -605,6 +650,38 @@ function titleFromPdfFilename(filename: string) {
     .slice(0, 140) || 'Untitled Card'
 }
 
+async function generatePdfPreview(pdfBuffer: Buffer, outputPath: string) {
+  // pdfjs-dist renders the first PDF page; @napi-rs/canvas provides a native canvas
+  // without requiring Chromium or ImageMagick on Railway.
+  const canvasModule = await import('@napi-rs/canvas')
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const globals = globalThis as any
+  globals.DOMMatrix ??= canvasModule.DOMMatrix
+  globals.ImageData ??= canvasModule.ImageData
+  globals.Path2D ??= canvasModule.Path2D
+
+  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(pdfBuffer), disableWorker: true })
+  const pdf = await loadingTask.promise
+  try {
+    const page = await pdf.getPage(1)
+    const natural = page.getViewport({ scale: 1 })
+    const maxWidth = 1200
+    const maxHeight = 1600
+    const scale = Math.min(maxWidth / natural.width, maxHeight / natural.height, 2)
+    const viewport = page.getViewport({ scale })
+    const canvas = canvasModule.createCanvas(Math.max(1, Math.ceil(viewport.width)), Math.max(1, Math.ceil(viewport.height)))
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    await page.render({ canvasContext: context as any, viewport }).promise
+    // JPEG keeps previews lightweight and is universally supported by browsers.
+    const jpeg = await canvas.encode('jpeg', 82)
+    await fs.writeFile(outputPath, jpeg)
+  } finally {
+    await pdf.destroy()
+  }
+}
+
 async function processBulkPdfImport(jobId: string) {
   const job = await prisma.cardImportJob.findUnique({ where: { id: jobId } })
   if (!job) return
@@ -635,15 +712,17 @@ async function processBulkPdfImport(jobId: string) {
         const folderAbsolute = path.join(cardsRoot, id)
         await fs.mkdir(folderAbsolute, { recursive: true })
         const pdfRelative = path.join(folderRelative, 'master.pdf')
+        const previewRelative = path.join(folderRelative, 'preview.jpg')
         await fs.writeFile(path.join(folderAbsolute, 'master.pdf'), buffer)
+        await generatePdfPreview(buffer, path.join(folderAbsolute, 'preview.jpg'))
         const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'love-note'
         await prisma.card.create({ data: {
           id, slug: `${slugBase}-${id.slice(0,8)}`, collectionId: job.collectionId, categoryId: null,
-          title, description: '', pdfPath: pdfRelative, previewPath: null, originalFileName: originalFilename,
+          title, description: '', pdfPath: pdfRelative, previewPath: previewRelative, originalFileName: originalFilename,
           widthInches, heightInches, orientation: width >= height ? 'landscape' : 'portrait', sideCount: 1,
           pageCount: pages.length, isPublished: job.publishOnImport,
         }})
-        await prisma.cardImportItem.update({ where: { id: item.id }, data: { cardId: id, pdfPath: pdfRelative, pageCount: pages.length, status: 'READY' } })
+        await prisma.cardImportItem.update({ where: { id: item.id }, data: { cardId: id, pdfPath: pdfRelative, previewPath: previewRelative, pageCount: pages.length, status: 'READY' } })
         await prisma.cardImportJob.update({ where: { id: jobId }, data: { processedFiles: { increment: 1 }, successCount: { increment: 1 } } })
       } catch (error) {
         await prisma.cardImportItem.update({ where: { id: item.id }, data: { status: 'FAILED', errorMessage: error instanceof Error ? error.message : 'Unknown PDF error' } })
