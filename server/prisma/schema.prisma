@@ -54,6 +54,8 @@ model Card {
   templateKey      String     @default("botanical-cream") @db.VarChar(80)
   frontLayout      Json?
   backLayout       Json?
+  savedBy          SavedCard[]
+  orders           CardOrder[]
   widthInches      Float      @default(7)
   heightInches     Float      @default(5)
   orientation      String     @default("landscape") @db.VarChar(32)
@@ -127,6 +129,7 @@ model User {
   cardOrders       CardOrder[]
   notificationJobs NotificationJob[]
   authSessions     AuthSession[]
+  savedCards       SavedCard[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -161,6 +164,8 @@ model Subscription {
   currentPeriodEnd  DateTime?
   cancelledAt       DateTime?
   cancelAtPeriodEnd Boolean   @default(false)
+  stripeCustomerId    String?   @unique @db.VarChar(191)
+  stripeSubscriptionId String?  @unique @db.VarChar(191)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -184,6 +189,22 @@ model PaymentTransaction {
   @@index([userId, occurredAt])
   @@index([status, occurredAt])
   @@map("paymenttransaction")
+}
+
+model SavedCard {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @db.VarChar(191)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    String   @db.VarChar(191)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, cardId])
+  @@index([userId, createdAt])
+  @@index([cardId])
+  @@map("savedcard")
 }
 
 model Challenge {
@@ -247,15 +268,21 @@ model CardOrder {
   user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerName    String    @db.VarChar(191)
   customerEmail   String    @db.VarChar(191)
+  cardId          String?   @db.VarChar(191)
+  card            Card?     @relation(fields: [cardId], references: [id], onDelete: SetNull)
   cardTitle       String    @db.VarChar(191)
   cardCategory    String?   @db.VarChar(120)
   quantity        Int       @default(1)
+  cardPrice       Decimal   @default(7.99) @db.Decimal(10, 2)
+  printingFee     Decimal   @default(7.00) @db.Decimal(10, 2)
+  subtotal        Decimal?  @db.Decimal(10, 2)
   shippingFee     Decimal?  @db.Decimal(10, 2)
   totalAmount     Decimal?  @db.Decimal(10, 2)
   status          String    @default("PLACED") @db.VarChar(32)
   reviewed        Boolean   @default(false)
   shippingName    String?   @db.VarChar(191)
   shippingAddress String?   @db.Text
+  shippingNote    String?   @db.Text
   trackingNumber  String?   @db.VarChar(191)
   placedAt        DateTime  @default(now())
   shippedAt       DateTime?
@@ -266,6 +293,7 @@ model CardOrder {
   @@index([status, placedAt])
   @@index([reviewed])
   @@index([userId])
+  @@index([cardId])
   @@map("cardorder")
 }
 

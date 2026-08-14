@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { createLoginSession, destroyLoginSession, getAuthenticatedUser, hashPassword, normalizeEmail, passwordPolicyError, requireAdmin, safeUser, verifyPassword } from './lib/auth.js'
 import { OAuth2Client } from 'google-auth-library'
 import unzipper from 'unzipper'
+import Stripe from 'stripe'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -58,6 +59,142 @@ app.use(cors({
   },
   credentials: true,
 }))
+
+
+function stripeClient() {
+  const key = process.env.STRIPE_SECRET_KEY?.trim()
+  if (!key) throw new Error('STRIPE_SECRET_KEY is not configured.')
+  return new Stripe(key)
+}
+
+function stripeSubscriptionStatus(status: string) {
+  if (status === 'active' || status === 'trialing') return 'ACTIVE'
+  if (status === 'canceled') return 'CANCELLED'
+  if (['past_due', 'unpaid', 'paused'].includes(status)) return 'PAYMENT_ISSUE'
+  return 'INCOMPLETE'
+}
+
+function stripePeriodEnd(subscription: any) {
+  const seconds = subscription?.current_period_end ?? subscription?.items?.data?.[0]?.current_period_end
+  return seconds ? new Date(Number(seconds) * 1000) : null
+}
+
+async function syncStripeSubscription(userId: string, subscription: any, paymentStatus?: string) {
+  const status = stripeSubscriptionStatus(String(subscription?.status ?? 'incomplete'))
+  const customerId = typeof subscription?.customer === 'string' ? subscription.customer : subscription?.customer?.id
+  const subscriptionId = subscription?.id ? String(subscription.id) : undefined
+  const startedSeconds = subscription?.start_date ?? subscription?.created
+  return prisma.subscription.upsert({
+    where: { userId },
+    create: {
+      userId,
+      planName: 'Monthly Access',
+      monthlyPrice: 8.99,
+      status,
+      paymentStatus: paymentStatus ?? (status === 'ACTIVE' ? 'PAID' : 'NONE'),
+      startedAt: startedSeconds ? new Date(Number(startedSeconds) * 1000) : new Date(),
+      currentPeriodEnd: stripePeriodEnd(subscription),
+      cancelledAt: status === 'CANCELLED' ? new Date() : null,
+      cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+      stripeCustomerId: customerId ?? null,
+      stripeSubscriptionId: subscriptionId ?? null,
+    },
+    update: {
+      status,
+      ...(paymentStatus ? { paymentStatus } : {}),
+      currentPeriodEnd: stripePeriodEnd(subscription),
+      cancelledAt: status === 'CANCELLED' ? new Date() : null,
+      cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+      ...(customerId ? { stripeCustomerId: customerId } : {}),
+      ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+    },
+  })
+}
+
+async function userIdForStripeSubscription(subscriptionId: string | null | undefined) {
+  if (!subscriptionId) return null
+  const existing = await prisma.subscription.findUnique({ where: { stripeSubscriptionId: subscriptionId } })
+  if (existing) return existing.userId
+  try {
+    const sub: any = await stripeClient().subscriptions.retrieve(subscriptionId)
+    return sub?.metadata?.userId || null
+  } catch { return null }
+}
+
+// Stripe requires the unmodified request body for webhook signature verification.
+app.post('/billing/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim()
+  const signature = req.headers['stripe-signature']
+  if (!endpointSecret || typeof signature !== 'string') return res.status(400).send('Stripe webhook is not configured.')
+  let event: Stripe.Event
+  try {
+    event = stripeClient().webhooks.constructEvent(req.body, signature, endpointSecret)
+  } catch (error) {
+    console.error('Stripe webhook signature verification failed:', error)
+    return res.status(400).send('Invalid webhook signature.')
+  }
+
+  try {
+    const object: any = event.data.object
+    if (event.type === 'checkout.session.completed' && object?.mode === 'subscription') {
+      const userId = object?.metadata?.userId || object?.client_reference_id
+      const subscriptionId = typeof object?.subscription === 'string' ? object.subscription : object?.subscription?.id
+      if (userId && subscriptionId) {
+        const subscription: any = await stripeClient().subscriptions.retrieve(subscriptionId)
+        await syncStripeSubscription(String(userId), subscription, object.payment_status === 'paid' ? 'PAID' : undefined)
+      }
+    } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.created') {
+      const subscription: any = object
+      const userId = subscription?.metadata?.userId || await userIdForStripeSubscription(subscription?.id)
+      if (userId) await syncStripeSubscription(String(userId), subscription)
+    } else if (event.type === 'invoice.paid') {
+      const invoice: any = object
+      const subscriptionId = typeof invoice?.subscription === 'string'
+        ? invoice.subscription
+        : invoice?.parent?.subscription_details?.subscription ?? null
+      const userId = await userIdForStripeSubscription(typeof subscriptionId === 'string' ? subscriptionId : subscriptionId?.id)
+      if (userId) {
+        if (subscriptionId) {
+          const sid = typeof subscriptionId === 'string' ? subscriptionId : subscriptionId.id
+          const subscription: any = await stripeClient().subscriptions.retrieve(sid)
+          await syncStripeSubscription(userId, subscription, 'PAID')
+        }
+        await prisma.paymentTransaction.upsert({
+          where: { providerTransactionId: String(invoice.id) },
+          create: {
+            userId,
+            providerTransactionId: String(invoice.id),
+            description: 'Laurentine monthly subscription',
+            amount: Number(invoice.amount_paid ?? 0) / 100,
+            currency: String(invoice.currency ?? 'usd').toUpperCase(),
+            status: 'SUCCESS',
+            occurredAt: invoice.status_transitions?.paid_at ? new Date(Number(invoice.status_transitions.paid_at) * 1000) : new Date(),
+          },
+          update: { status: 'SUCCESS', amount: Number(invoice.amount_paid ?? 0) / 100 },
+        })
+      }
+    } else if (event.type === 'invoice.payment_failed') {
+      const invoice: any = object
+      const subscriptionId = typeof invoice?.subscription === 'string'
+        ? invoice.subscription
+        : invoice?.parent?.subscription_details?.subscription ?? null
+      const sid = typeof subscriptionId === 'string' ? subscriptionId : subscriptionId?.id
+      const userId = await userIdForStripeSubscription(sid)
+      if (userId) {
+        await prisma.subscription.updateMany({ where: { userId }, data: { paymentStatus: 'FAILED', status: 'PAYMENT_ISSUE' } })
+        await prisma.paymentTransaction.upsert({
+          where: { providerTransactionId: String(invoice.id) },
+          create: { userId, providerTransactionId: String(invoice.id), description: 'Subscription payment failed', amount: Number(invoice.amount_due ?? 0) / 100, currency: String(invoice.currency ?? 'usd').toUpperCase(), status: 'FAILED' },
+          update: { status: 'FAILED' },
+        })
+      }
+    }
+    return res.json({ received: true })
+  } catch (error) {
+    console.error('Stripe webhook processing failed:', error)
+    return res.status(500).json({ message: 'Webhook processing failed.' })
+  }
+})
 
 app.use(express.json())
 // Public assets are intentionally limited. Original card PDFs and ZIP imports stay private.
@@ -131,52 +268,66 @@ function cardDto(req: express.Request, card: any) {
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 // Stripe-hosted Checkout for the Laurentine Love Notes monthly subscription.
-// The Stripe secret key stays on the server; the browser receives only the Checkout URL.
 app.post('/billing/subscription-checkout', async (req, res) => {
   const auth = await getAuthenticatedUser(req)
   if (!auth) return res.status(401).json({ message: 'Please sign in before subscribing.' })
-
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim()
   const priceId = process.env.STRIPE_MONTHLY_PRICE_ID?.trim()
   const frontendUrl = (process.env.FRONTEND_URL || 'https://laurentine.co').replace(/\/$/, '')
+  if (!priceId) return res.status(500).json({ message: 'Subscription checkout is not configured.' })
 
-  if (!stripeSecretKey || !priceId) {
-    console.error('Stripe checkout is missing STRIPE_SECRET_KEY or STRIPE_MONTHLY_PRICE_ID.')
-    return res.status(500).json({ message: 'Subscription checkout is not configured.' })
-  }
-
+  const requestedReturn = typeof req.body?.returnPath === 'string' ? req.body.returnPath : '/love-notes'
+  const returnPath = requestedReturn.startsWith('/') && !requestedReturn.startsWith('//') ? requestedReturn.split('?')[0] : '/love-notes'
   try {
-    const params = new URLSearchParams()
-    params.set('mode', 'subscription')
-    params.set('payment_method_types[0]', 'card')
-    params.set('line_items[0][price]', priceId)
-    params.set('line_items[0][quantity]', '1')
-    params.set('customer_email', auth.email)
-    params.set('client_reference_id', auth.id)
-    params.set('metadata[userId]', auth.id)
-    params.set('subscription_data[metadata][userId]', auth.id)
-    params.set('success_url', `${frontendUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`)
-    params.set('cancel_url', `${frontendUrl}/subscription/cancelled`)
-
-    const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stripeSecretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
+    const existing = await prisma.subscription.findUnique({ where: { userId: auth.id } })
+    const session = await stripeClient().checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      customer: existing?.stripeCustomerId || undefined,
+      customer_email: existing?.stripeCustomerId ? undefined : auth.email,
+      client_reference_id: auth.id,
+      metadata: { userId: auth.id, returnPath },
+      subscription_data: { metadata: { userId: auth.id } },
+      success_url: `${frontendUrl}${returnPath}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}${returnPath}?checkout=cancelled`,
     })
-
-    const checkout = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string } }
-    if (!stripeResponse.ok || !checkout.url) {
-      console.error('Stripe checkout creation failed:', checkout.error?.message || checkout)
-      return res.status(502).json({ message: checkout.error?.message || 'Could not start Stripe checkout.' })
-    }
-
-    res.json({ sessionId: checkout.id, url: checkout.url })
-  } catch (error) {
+    res.json({ sessionId: session.id, url: session.url })
+  } catch (error: any) {
     console.error('Stripe checkout error:', error)
-    res.status(500).json({ message: 'Could not start subscription checkout.' })
+    res.status(500).json({ message: error?.message || 'Could not start subscription checkout.' })
+  }
+})
+
+app.get('/billing/confirm-subscription', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const sessionId = String(req.query.session_id ?? '').trim()
+  if (!sessionId) return res.status(400).json({ message: 'Missing checkout session.' })
+  try {
+    const session: any = await stripeClient().checkout.sessions.retrieve(sessionId, { expand: ['subscription'] })
+    const sessionUserId = session?.metadata?.userId || session?.client_reference_id
+    if (sessionUserId !== auth.id) return res.status(403).json({ message: 'This checkout belongs to another account.' })
+    const subscription: any = typeof session.subscription === 'string' ? await stripeClient().subscriptions.retrieve(session.subscription) : session.subscription
+    if (!subscription) return res.status(409).json({ active: false, message: 'Stripe has not attached the subscription yet.' })
+    const dbSub = await syncStripeSubscription(auth.id, subscription, session.payment_status === 'paid' ? 'PAID' : undefined)
+    res.json({ active: dbSub.status === 'ACTIVE', subscription: { status: dbSub.status, currentPeriodEnd: dbSub.currentPeriodEnd, monthlyPrice: Number(dbSub.monthlyPrice) } })
+  } catch (error: any) {
+    console.error('Stripe subscription confirmation failed:', error)
+    res.status(502).json({ message: error?.message || 'Could not confirm subscription.' })
+  }
+})
+
+app.post('/billing/portal', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const subscription = await prisma.subscription.findUnique({ where: { userId: auth.id } })
+  if (!subscription?.stripeCustomerId) return res.status(400).json({ message: 'No Stripe billing profile is available yet.' })
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://laurentine.co').replace(/\/$/, '')
+  try {
+    const portal = await stripeClient().billingPortal.sessions.create({ customer: subscription.stripeCustomerId, return_url: `${frontendUrl}/profile` })
+    res.json({ url: portal.url })
+  } catch (error: any) {
+    res.status(500).json({ message: error?.message || 'Could not open subscription management.' })
   }
 })
 
@@ -614,6 +765,58 @@ app.post('/profile/photo', profilePhotoUpload.single('photo'), async (req,res)=>
 app.delete('/profile/photo', async(req,res)=>{ const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'}); const user=await prisma.user.update({where:{id:auth.id},data:{profileImageUrl:null}}); res.json({user:safeUser(user)}) })
 
 // Everything below /admin requires a current ACTIVE administrator session.
+
+async function hasActiveSubscription(userId: string) {
+  const subscription = await prisma.subscription.findUnique({ where: { userId } })
+  return Boolean(subscription?.status === 'ACTIVE' && (!subscription.currentPeriodEnd || subscription.currentPeriodEnd > new Date()))
+}
+
+app.get('/library', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const saved = await prisma.savedCard.findMany({
+    where: { userId: auth.id },
+    orderBy: { createdAt: 'desc' },
+    include: { card: { select: publicCardSelect } },
+  })
+  res.json(saved.map(item => ({ id: item.id, savedAt: item.createdAt, usedAt: item.usedAt, card: cardDto(req, item.card) })))
+})
+
+app.post('/library/:cardId', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to save cards.' })
+  const card = await prisma.card.findFirst({ where: { id: req.params.cardId, isPublished: true } })
+  if (!card) return res.status(404).json({ message: 'Card not found.' })
+  const saved = await prisma.savedCard.upsert({
+    where: { userId_cardId: { userId: auth.id, cardId: card.id } },
+    create: { userId: auth.id, cardId: card.id },
+    update: {},
+  })
+  res.status(201).json(saved)
+})
+
+app.delete('/library/:cardId', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  await prisma.savedCard.deleteMany({ where: { userId: auth.id, cardId: req.params.cardId } })
+  res.status(204).end()
+})
+
+app.patch('/library/:cardId/used', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const parsed = z.object({ used: z.boolean() }).safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid used value.' })
+  try {
+    const saved = await prisma.savedCard.update({
+      where: { userId_cardId: { userId: auth.id, cardId: req.params.cardId } },
+      data: { usedAt: parsed.data.used ? new Date() : null },
+    })
+    res.json(saved)
+  } catch { res.status(404).json({ message: 'Saved card not found.' }) }
+})
+
 app.use('/admin', requireAdmin)
 
 
@@ -1454,14 +1657,14 @@ app.get('/admin/orders', async (req, res) => {
   ])
   res.json({
     summary: { total, placed, quoted, inProgress, shipped, delivered, cancelled },
-    orders: orders.map(o => ({ ...o, shippingFee: o.shippingFee == null ? null : Number(o.shippingFee), totalAmount: o.totalAmount == null ? null : Number(o.totalAmount) })),
+    orders: orders.map(orderDto),
   })
 })
 
 app.get('/admin/orders/:orderId', async (req, res) => {
   const order = await prisma.cardOrder.findUnique({ where: { id: req.params.orderId } })
   if (!order) return res.status(404).json({ message: 'Order not found' })
-  res.json({ ...order, shippingFee: order.shippingFee == null ? null : Number(order.shippingFee), totalAmount: order.totalAmount == null ? null : Number(order.totalAmount) })
+  res.json(orderDto(order))
 })
 
 app.patch('/admin/orders/:orderId/status', async (req, res) => {
@@ -1473,10 +1676,24 @@ app.patch('/admin/orders/:orderId/status', async (req, res) => {
       where: { id: req.params.orderId },
       data: { status, shippedAt: status === 'SHIPPED' ? new Date() : undefined, deliveredAt: status === 'DELIVERED' ? new Date() : undefined },
     })
-    res.json({ ...order, shippingFee: order.shippingFee == null ? null : Number(order.shippingFee), totalAmount: order.totalAmount == null ? null : Number(order.totalAmount) })
+    res.json(orderDto(order))
   } catch {
     res.status(404).json({ message: 'Order not found' })
   }
+})
+
+
+app.patch('/admin/orders/:orderId/quote', async (req, res) => {
+  const parsed = z.object({ shippingFee: z.coerce.number().min(0).max(9999) }).safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid shipping fee.' })
+  const existing = await prisma.cardOrder.findUnique({ where: { id: req.params.orderId } })
+  if (!existing) return res.status(404).json({ message: 'Order not found' })
+  const beforeShipping = Number(existing.subtotal ?? 0) + Number(existing.printingFee ?? 0)
+  const updated = await prisma.cardOrder.update({
+    where: { id: existing.id },
+    data: { shippingFee: parsed.data.shippingFee, totalAmount: Number((beforeShipping + parsed.data.shippingFee).toFixed(2)), status: existing.status === 'PLACED' ? 'QUOTED' : existing.status },
+  })
+  res.json(orderDto(updated))
 })
 
 app.patch('/admin/orders/:orderId/reviewed', async (req, res) => {
@@ -1484,7 +1701,7 @@ app.patch('/admin/orders/:orderId/reviewed', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ message: 'Invalid reviewed value.' })
   try {
     const order = await prisma.cardOrder.update({ where: { id: req.params.orderId }, data: { reviewed: parsed.data.reviewed } })
-    res.json({ ...order, shippingFee: order.shippingFee == null ? null : Number(order.shippingFee), totalAmount: order.totalAmount == null ? null : Number(order.totalAmount) })
+    res.json(orderDto(order))
   } catch {
     res.status(404).json({ message: 'Order not found' })
   }
@@ -1669,6 +1886,75 @@ app.put('/admin/settings', async (req, res) => {
   res.json({ ...settings, defaultPrintingFee: Number(settings.defaultPrintingFee) })
 })
 
+
+const physicalOrderSchema = z.object({
+  cardId: z.string().min(1),
+  quantity: z.coerce.number().int().min(1).max(25),
+  recipientName: z.string().min(1).max(191),
+  address1: z.string().min(1).max(255),
+  address2: z.string().max(255).optional().default(''),
+  city: z.string().min(1).max(120),
+  state: z.string().min(1).max(120),
+  postalCode: z.string().min(1).max(40),
+  country: z.string().min(1).max(120),
+  shippingNote: z.string().max(2000).optional().default(''),
+})
+
+function orderDto(o: any) {
+  return {
+    ...o,
+    cardPrice: Number(o.cardPrice ?? 7.99),
+    printingFee: Number(o.printingFee ?? 7),
+    subtotal: o.subtotal == null ? null : Number(o.subtotal),
+    shippingFee: o.shippingFee == null ? null : Number(o.shippingFee),
+    totalAmount: o.totalAmount == null ? null : Number(o.totalAmount),
+  }
+}
+
+app.get('/orders/pricing', async (_req, res) => {
+  const settings = await prisma.systemSetting.upsert({ where: { id: 'platform' }, update: {}, create: { id: 'platform', defaultPrintingFee: 7, orderFeedbackEmail: true } })
+  res.json({ cardPrice: 7.99, printingFee: Number(settings.defaultPrintingFee) })
+})
+
+app.post('/orders', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const parsed = physicalOrderSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Please complete the shipping information.', issues: parsed.error.issues })
+  const card = await prisma.card.findFirst({ where: { id: parsed.data.cardId, isPublished: true }, include: { collection: true } })
+  if (!card) return res.status(404).json({ message: 'Card not found.' })
+  const user = await prisma.user.findUnique({ where: { id: auth.id } })
+  if (!user) return res.status(401).json({ message: 'Account not found.' })
+  const settings = await prisma.systemSetting.upsert({ where: { id: 'platform' }, update: {}, create: { id: 'platform', defaultPrintingFee: 7, orderFeedbackEmail: true } })
+  const cardPrice = 7.99
+  const printingFee = Number(settings.defaultPrintingFee)
+  const subtotal = Number((cardPrice * parsed.data.quantity).toFixed(2))
+  const totalBeforeShipping = Number((subtotal + printingFee).toFixed(2))
+  const address = [parsed.data.address1, parsed.data.address2, `${parsed.data.city}, ${parsed.data.state} ${parsed.data.postalCode}`, parsed.data.country].filter(Boolean).join('\n')
+  const order = await prisma.cardOrder.create({
+    data: {
+      orderNumber: `LT-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 5).toUpperCase()}`,
+      userId: auth.id,
+      customerName: user.fullName,
+      customerEmail: user.email,
+      cardId: card.id,
+      cardTitle: card.title,
+      cardCategory: card.collection.name,
+      quantity: parsed.data.quantity,
+      cardPrice,
+      printingFee,
+      subtotal,
+      shippingFee: null,
+      totalAmount: totalBeforeShipping,
+      status: 'PLACED',
+      shippingName: parsed.data.recipientName,
+      shippingAddress: address,
+      shippingNote: parsed.data.shippingNote || null,
+    },
+  })
+  res.status(201).json(orderDto(order))
+})
+
 const port = Number(process.env.PORT ?? 4000)
 await fs.mkdir(cardsRoot, { recursive: true })
 await fs.mkdir(challengesRoot, { recursive: true })
@@ -1685,18 +1971,19 @@ app.get('/orders', async (req,res)=>{
   const [orders,all]=await Promise.all([prisma.cardOrder.findMany({where,orderBy:{placedAt:'desc'}}),prisma.cardOrder.findMany({where:{userId:auth.id},orderBy:{placedAt:'desc'}})])
   const cards=await prisma.card.findMany({where:{title:{in:[...new Set(orders.map(o=>o.cardTitle))]}},select:{title:true,previewPath:true}})
   const previews=new Map(cards.map(c=>[c.title,c.previewPath?absoluteAssetUrl(req,c.previewPath):null]))
-  const dto=(o:any)=>({...o,shippingFee:o.shippingFee==null?null:Number(o.shippingFee),totalAmount:o.totalAmount==null?null:Number(o.totalAmount),previewUrl:previews.get(o.cardTitle)??null})
+  const dto=(o:any)=>({...orderDto(o),previewUrl:previews.get(o.cardTitle)??null})
   res.json({summary:{activeOrders:all.filter(o=>!['DELIVERED','CANCELLED'].includes(o.status)).length,totalCardsOrdered:all.reduce((n,o)=>n+o.quantity,0),deliveredTotal:all.filter(o=>o.status==='DELIVERED').reduce((n,o)=>n+o.quantity,0)},orders:orders.map(dto)})
 })
 app.get('/orders/:orderId',async(req,res)=>{
  const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
  const o=await prisma.cardOrder.findFirst({where:{id:req.params.orderId,userId:auth.id}}); if(!o)return res.status(404).json({message:'Order not found.'})
- res.json({...o,shippingFee:o.shippingFee==null?null:Number(o.shippingFee),totalAmount:o.totalAmount==null?null:Number(o.totalAmount)})
+ const card=o.cardId?await prisma.card.findUnique({where:{id:o.cardId},select:{previewPath:true}}):null
+ res.json({...orderDto(o),previewUrl:card?.previewPath?absoluteAssetUrl(req,card.previewPath):null})
 })
 app.patch('/orders/:orderId/cancel',async(req,res)=>{
  const auth=await getAuthenticatedUser(req); if(!auth)return res.status(401).json({message:'Authentication required.'})
  const o=await prisma.cardOrder.findFirst({where:{id:req.params.orderId,userId:auth.id}}); if(!o)return res.status(404).json({message:'Order not found.'})
  if(!['PLACED','QUOTED'].includes(o.status))return res.status(400).json({message:'This order can no longer be cancelled.'})
  const updated=await prisma.cardOrder.update({where:{id:o.id},data:{status:'CANCELLED'}})
- res.json({...updated,shippingFee:updated.shippingFee==null?null:Number(updated.shippingFee),totalAmount:updated.totalAmount==null?null:Number(updated.totalAmount)})
+ res.json(orderDto(updated))
 })

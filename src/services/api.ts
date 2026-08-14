@@ -447,15 +447,20 @@ export type AdminCardOrder = {
   userId?: string | null
   customerName: string
   customerEmail: string
+  cardId?: string | null
   cardTitle: string
   cardCategory?: string | null
   quantity: number
+  cardPrice?: number
+  printingFee?: number
+  subtotal?: number | null
   shippingFee?: number | null
   totalAmount?: number | null
   status: 'PLACED' | 'QUOTED' | 'IN_PROGRESS' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
   reviewed: boolean
   shippingName?: string | null
   shippingAddress?: string | null
+  shippingNote?: string | null
   trackingNumber?: string | null
   placedAt: string
   shippedAt?: string | null
@@ -492,6 +497,13 @@ export async function adminSetOrderStatus(orderId: string, status: AdminCardOrde
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(body.message ?? 'Unable to update order')
+  return body
+}
+
+export async function adminSetOrderQuote(orderId:string,shippingFee:number):Promise<AdminCardOrder>{
+  const response=await apiFetch(`${API_BASE}/admin/orders/${orderId}/quote`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({shippingFee})})
+  const body=await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message??'Unable to update shipping quote')
   return body
 }
 
@@ -567,8 +579,8 @@ export async function adminSaveSettings(input:{defaultPrintingFee:number;orderFe
 }
 
 export type UserOrder = {
-  id:string; orderNumber:string; cardTitle:string; cardCategory?:string|null; quantity:number; shippingFee:number|null; totalAmount:number|null; status:string;
-  shippingName?:string|null; shippingAddress?:string|null; trackingNumber?:string|null; placedAt:string; shippedAt?:string|null; deliveredAt?:string|null;
+  id:string; orderNumber:string; cardId?:string|null; cardTitle:string; cardCategory?:string|null; quantity:number; cardPrice?:number; printingFee?:number; subtotal?:number|null; shippingFee:number|null; totalAmount:number|null; status:string;
+  shippingName?:string|null; shippingAddress?:string|null; shippingNote?:string|null; trackingNumber?:string|null; placedAt:string; shippedAt?:string|null; deliveredAt?:string|null;
   previewUrl?:string|null;
 }
 export type UserOrdersResponse = { summary:{activeOrders:number; totalCardsOrdered:number; deliveredTotal:number}; orders:UserOrder[] }
@@ -580,12 +592,31 @@ export async function getMyOrder(orderId:string):Promise<UserOrder>{ return auth
 export async function cancelMyOrder(orderId:string):Promise<UserOrder>{ return authJson<UserOrder>(`/orders/${orderId}/cancel`,{method:'PATCH'}) }
 
 
-export async function createSubscriptionCheckout(): Promise<{ sessionId?: string; url: string }> {
-  const response = await apiFetch(`${API_BASE}/billing/subscription-checkout`, { method: 'POST' })
+export async function createSubscriptionCheckout(returnPath = '/love-notes'): Promise<{ sessionId?: string; url: string }> {
+  const response = await apiFetch(`${API_BASE}/billing/subscription-checkout`, { method: 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({returnPath}) })
   const body = await response.json().catch(() => ({})) as { sessionId?: string; url?: string; message?: string }
   if (!response.ok || !body.url) throw new Error(body.message ?? 'Unable to start subscription checkout')
   return { sessionId: body.sessionId, url: body.url }
 }
+
+export async function confirmSubscriptionCheckout(sessionId: string): Promise<{active:boolean; subscription?:{status:string;currentPeriodEnd?:string|null;monthlyPrice:number}}> {
+  return authJson(`/billing/confirm-subscription?session_id=${encodeURIComponent(sessionId)}`)
+}
+
+export async function openBillingPortal(): Promise<{url:string}> {
+  return authJson('/billing/portal',{method:'POST'})
+}
+
+export type SavedLibraryCard = { id:string; savedAt:string; usedAt?:string|null; card:LoveNoteCard }
+export async function getLibrary():Promise<SavedLibraryCard[]>{ return authJson('/library') }
+export async function saveCardToLibrary(cardId:string):Promise<void>{ await authJson(`/library/${encodeURIComponent(cardId)}`,{method:'POST'}) }
+export async function removeCardFromLibrary(cardId:string):Promise<void>{ const r=await apiFetch(`${API_BASE}/library/${encodeURIComponent(cardId)}`,{method:'DELETE'}); if(!r.ok) throw new Error('Unable to remove saved card') }
+export async function setLibraryCardUsed(cardId:string,used:boolean):Promise<void>{ await authJson(`/library/${encodeURIComponent(cardId)}/used`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({used})}) }
+
+export type PhysicalOrderPricing={cardPrice:number;printingFee:number}
+export type PhysicalOrderInput={cardId:string;quantity:number;recipientName:string;address1:string;address2?:string;city:string;state:string;postalCode:string;country:string;shippingNote?:string}
+export async function getPhysicalOrderPricing():Promise<PhysicalOrderPricing>{ return authJson('/orders/pricing') }
+export async function createPhysicalOrder(input:PhysicalOrderInput):Promise<UserOrder>{ return authJson('/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}) }
 
 export type BulkImportItem = {
   id: string

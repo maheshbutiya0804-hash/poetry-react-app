@@ -28,7 +28,8 @@
     "google-auth-library": "^10.3.0",
     "unzipper": "^0.12.3",
     "@napi-rs/canvas": "latest",
-    "pdfjs-dist": "latest"
+    "pdfjs-dist": "latest",
+    "stripe": "^18.5.0"
   },
   "devDependencies": {
     "@types/cors": "latest",
