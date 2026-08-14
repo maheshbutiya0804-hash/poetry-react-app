@@ -4,6 +4,8 @@ export type LoveNoteCollection = {
   name: string
   description: string
   cardCount?: number
+  isActive?: boolean
+  sortOrder?: number
 }
 
 export type LoveNoteCard = {

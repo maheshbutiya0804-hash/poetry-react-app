@@ -4,7 +4,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 
 const nav = [
-  ['▦','Overview','Platform summary','/admin'], ['▣','Cards','Manage cards','/admin/cards'], ['◫','Collections','Browse groups','/admin/collections'], ['⌘','Categories','Card occasions','/admin/categories'], ['♙','Users','Profiles and Activity','/admin/users'],
+  ['▦','Overview','Platform summary','/admin'], ['▣','Cards','Manage cards','/admin/cards'], ['◫','Collections','Browse groups','/admin/collections'], ['♙','Users','Profiles and Activity','/admin/users'],
   ['▤','Subscriptions and Payments','Revenue and issues','/admin/subscriptions'], ['✎','Requests','Custom poetry','/admin/requests'], ['▣','Challenges','Monthly notes','/admin/challenges'],
   ['◇','Orders','Manage Card Orders','/admin/orders'], ['♧','Notifications','Email and SMS','/admin/notifications'], ['□','Community','Moderation','/admin/community'], ['⚙','Settings','System Values','/admin/settings'],
 ]

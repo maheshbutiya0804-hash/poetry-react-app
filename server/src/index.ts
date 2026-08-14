@@ -4,7 +4,7 @@ import express from 'express'
 import multer from 'multer'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { createReadStream, existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { prisma } from "./lib/prisma.js";
@@ -12,18 +12,34 @@ import { PDFDocument } from 'pdf-lib'
 import { z } from 'zod'
 import { createLoginSession, destroyLoginSession, getAuthenticatedUser, hashPassword, normalizeEmail, passwordPolicyError, requireAdmin, safeUser, verifyPassword } from './lib/auth.js'
 import { OAuth2Client } from 'google-auth-library'
+import unzipper from 'unzipper'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const serverRoot = path.resolve(__dirname, '..')
-const storageRoot = path.join(serverRoot, 'storage')
+const storageRoot = process.env.STORAGE_ROOT?.trim() || path.join(serverRoot, 'storage')
 const cardsRoot = path.join(storageRoot, 'cards')
 const challengesRoot = path.join(storageRoot, 'challenges')
+const importsRoot = path.join(storageRoot, 'imports')
 
 const app = express()
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
+})
+
+const bulkZipUpload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      try { await fs.mkdir(importsRoot, { recursive: true }); cb(null, importsRoot) } catch (error) { cb(error as Error, importsRoot) }
+    },
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}-${path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]+/g, '-')}`),
+  }),
+  limits: { fileSize: 750 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const ok = file.originalname.toLowerCase().endsWith('.zip') || ['application/zip','application/x-zip-compressed'].includes(file.mimetype)
+    cb(ok ? null : new Error('Only ZIP files are allowed.'), ok)
+  },
 })
 
 const allowedOrigins = [
@@ -580,6 +596,95 @@ app.post('/admin/categories', async(req,res)=>{const parsed=taxonomySchema.safeP
 app.put('/admin/categories/:id', async(req,res)=>{const parsed=taxonomySchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({message:'Please enter valid category details.'});try{const item=await prisma.category.update({where:{id:req.params.id},data:parsed.data,include:{_count:{select:{cards:true}}}});res.json({...item,cardCount:item._count.cards,_count:undefined})}catch(e){console.error(e);res.status(409).json({message:'Could not update category. Check name and slug.'})}})
 app.delete('/admin/categories/:id', async(req,res)=>{const count=await prisma.card.count({where:{categoryId:req.params.id}});if(count)return res.status(409).json({message:`This category is used by ${count} card${count===1?'':'s'}. Reassign those cards before deleting it.`});try{await prisma.category.delete({where:{id:req.params.id}});res.status(204).end()}catch{res.status(404).json({message:'Category not found.'})}})
 
+function titleFromPdfFilename(filename: string) {
+  return path.basename(filename, path.extname(filename))
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .slice(0, 140) || 'Untitled Card'
+}
+
+async function processBulkPdfImport(jobId: string) {
+  const job = await prisma.cardImportJob.findUnique({ where: { id: jobId } })
+  if (!job) return
+  try {
+    await prisma.cardImportJob.update({ where: { id: jobId }, data: { status: 'PROCESSING', errorMessage: null } })
+    const zipAbsolute = path.join(storageRoot, job.zipPath)
+    const archive = await unzipper.Open.file(zipAbsolute)
+    const pdfEntries = archive.files.filter(entry => entry.type === 'File' && entry.path.toLowerCase().endsWith('.pdf') && !entry.path.includes('__MACOSX'))
+    if (!pdfEntries.length) throw new Error('No PDF files were found in this ZIP.')
+    if (pdfEntries.length > 2000) throw new Error('A ZIP can contain at most 2,000 PDF files.')
+    await prisma.cardImportJob.update({ where: { id: jobId }, data: { totalFiles: pdfEntries.length } })
+
+    for (const entry of pdfEntries) {
+      const originalFilename = path.basename(entry.path)
+      const title = titleFromPdfFilename(originalFilename)
+      const item = await prisma.cardImportItem.create({ data: { jobId, originalFilename, title, status: 'PROCESSING' } })
+      try {
+        const buffer = await entry.buffer()
+        if (buffer.length > 40 * 1024 * 1024) throw new Error('PDF exceeds the 40 MB per-file limit.')
+        const pdfDoc = await PDFDocument.load(buffer)
+        const pages = pdfDoc.getPages()
+        if (!pages.length) throw new Error('PDF contains no pages.')
+        const { width, height } = pages[0].getSize()
+        const widthInches = width / 72
+        const heightInches = height / 72
+        const id = randomUUID()
+        const folderRelative = path.join('cards', id)
+        const folderAbsolute = path.join(cardsRoot, id)
+        await fs.mkdir(folderAbsolute, { recursive: true })
+        const pdfRelative = path.join(folderRelative, 'master.pdf')
+        await fs.writeFile(path.join(folderAbsolute, 'master.pdf'), buffer)
+        const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'love-note'
+        await prisma.card.create({ data: {
+          id, slug: `${slugBase}-${id.slice(0,8)}`, collectionId: job.collectionId, categoryId: null,
+          title, description: '', pdfPath: pdfRelative, previewPath: null, originalFileName: originalFilename,
+          widthInches, heightInches, orientation: width >= height ? 'landscape' : 'portrait', sideCount: 1,
+          pageCount: pages.length, isPublished: job.publishOnImport,
+        }})
+        await prisma.cardImportItem.update({ where: { id: item.id }, data: { cardId: id, pdfPath: pdfRelative, pageCount: pages.length, status: 'READY' } })
+        await prisma.cardImportJob.update({ where: { id: jobId }, data: { processedFiles: { increment: 1 }, successCount: { increment: 1 } } })
+      } catch (error) {
+        await prisma.cardImportItem.update({ where: { id: item.id }, data: { status: 'FAILED', errorMessage: error instanceof Error ? error.message : 'Unknown PDF error' } })
+        await prisma.cardImportJob.update({ where: { id: jobId }, data: { processedFiles: { increment: 1 }, failedCount: { increment: 1 } } })
+      }
+    }
+    await prisma.cardImportJob.update({ where: { id: jobId }, data: { status: 'COMPLETE' } })
+    await fs.unlink(zipAbsolute).catch(() => undefined)
+  } catch (error) {
+    console.error('Bulk PDF import failed', error)
+    await prisma.cardImportJob.update({ where: { id: jobId }, data: { status: 'FAILED', errorMessage: error instanceof Error ? error.message : 'Import failed.' } }).catch(() => undefined)
+  }
+}
+
+app.post('/admin/cards/bulk-import', bulkZipUpload.single('zip'), async (req, res) => {
+  try {
+    const collectionId = String(req.body.collectionId || '').trim()
+    if (!collectionId) return res.status(400).json({ message: 'Choose a collection.' })
+    if (!req.file) return res.status(400).json({ message: 'Choose a ZIP containing PDF cards.' })
+    const collection = await prisma.collection.findUnique({ where: { id: collectionId } })
+    if (!collection || !collection.isActive) { await fs.unlink(req.file.path).catch(() => undefined); return res.status(400).json({ message: 'Invalid collection.' }) }
+    const relativeZip = path.relative(storageRoot, req.file.path)
+    const job = await prisma.cardImportJob.create({ data: {
+      collectionId, originalZipName: req.file.originalname, zipPath: relativeZip,
+      publishOnImport: String(req.body.publish || 'false') === 'true', status: 'QUEUED',
+    }})
+    res.status(202).json({ id: job.id, status: job.status })
+    setImmediate(() => void processBulkPdfImport(job.id))
+  } catch (error) {
+    console.error(error)
+    if (req.file) await fs.unlink(req.file.path).catch(() => undefined)
+    res.status(500).json({ message: 'Could not start bulk PDF import.' })
+  }
+})
+
+app.get('/admin/cards/bulk-import/:jobId', async (req, res) => {
+  const job = await prisma.cardImportJob.findUnique({ where: { id: req.params.jobId }, include: { items: { orderBy: { createdAt: 'asc' }, take: 500 } } })
+  if (!job) return res.status(404).json({ message: 'Import job not found.' })
+  res.json(job)
+})
+
 app.get('/admin/cards', async (req, res) => {
   const cards = await prisma.card.findMany({ orderBy: { createdAt: 'desc' }, select: publicCardSelect })
   res.json(cards.map(card => cardDto(req, card)))
@@ -593,7 +698,7 @@ app.get('/admin/cards/:cardId', async (req, res) => {
 
 const cardFieldsSchema = z.object({
   collectionId: z.string().min(1),
-  categoryId: z.string().min(1),
+  categoryId: z.string().optional().default(''),
   title: z.string().min(2).max(140),
   description: z.string().max(1000).optional().default(''),
   published: z.enum(['true', 'false']).optional().default('false'),
@@ -616,9 +721,8 @@ app.post('/admin/cards', upload.fields([
       return res.status(400).json({ message: 'Preview must be PNG, JPEG, or WebP.' })
     }
 
-    const [collection,category] = await Promise.all([prisma.collection.findUnique({ where: { id: fields.collectionId } }),prisma.category.findUnique({where:{id:fields.categoryId}})])
+    const collection = await prisma.collection.findUnique({ where: { id: fields.collectionId } })
     if (!collection) return res.status(400).json({ message: 'Invalid collection.' })
-    if (!category || !category.isActive) return res.status(400).json({ message: 'Invalid category.' })
 
     const pdfDoc = await PDFDocument.load(pdf.buffer)
     const pages = pdfDoc.getPages()
@@ -660,7 +764,7 @@ app.post('/admin/cards', upload.fields([
         id,
         slug,
         collectionId: fields.collectionId,
-        categoryId: fields.categoryId,
+        categoryId: fields.categoryId || null,
         title: fields.title,
         description: fields.description,
         pdfPath: pdfRelative,
@@ -689,7 +793,7 @@ app.post('/admin/cards', upload.fields([
 
 const designedCardSchema = z.object({
   collectionId: z.string().min(1),
-  categoryId: z.string().min(1),
+  categoryId: z.string().optional().default(''),
   title: z.string().min(2).max(140),
   description: z.string().max(1000).optional().default(''),
   poemText: z.string().min(1).max(12000),
@@ -704,12 +808,8 @@ const designedCardSchema = z.object({
 app.post('/admin/cards/design', upload.none(), async (req, res) => {
   try {
     const fields = designedCardSchema.parse(req.body)
-    const [collection, category] = await Promise.all([
-      prisma.collection.findUnique({ where: { id: fields.collectionId } }),
-      prisma.category.findUnique({ where: { id: fields.categoryId } }),
-    ])
+    const collection = await prisma.collection.findUnique({ where: { id: fields.collectionId } })
     if (!collection) return res.status(400).json({ message: 'Invalid collection.' })
-    if (!category || !category.isActive) return res.status(400).json({ message: 'Invalid category.' })
     const id = randomUUID()
     const slugBase = fields.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'love-note'
     const parseJson = (v?:string) => { if(!v) return undefined; try { return JSON.parse(v) } catch { return undefined } }
@@ -718,7 +818,7 @@ app.post('/admin/cards/design', upload.none(), async (req, res) => {
         id,
         slug: `${slugBase}-${id.slice(0,8)}`,
         collectionId: fields.collectionId,
-        categoryId: fields.categoryId,
+        categoryId: fields.categoryId || null,
         title: fields.title,
         description: fields.description,
         poemText: fields.poemText,
@@ -747,13 +847,11 @@ app.post('/admin/cards/design', upload.none(), async (req, res) => {
 app.put('/admin/cards/:cardId/design', upload.none(), async (req, res) => {
   try {
     const fields = designedCardSchema.parse(req.body)
-    const [collection, category, existing] = await Promise.all([
+    const [collection, existing] = await Promise.all([
       prisma.collection.findUnique({ where: { id: fields.collectionId } }),
-      prisma.category.findUnique({ where: { id: fields.categoryId } }),
       prisma.card.findUnique({ where: { id: req.params.cardId } }),
     ])
     if (!collection) return res.status(400).json({ message: 'Invalid collection.' })
-    if (!category || !category.isActive) return res.status(400).json({ message: 'Invalid category.' })
     if (!existing) return res.status(404).json({ message: 'Card not found' })
     const parseJson = (v?: string) => { if (!v) return undefined; try { return JSON.parse(v) } catch { return undefined } }
     const frontLayout = parseJson(fields.frontLayout)
@@ -762,7 +860,7 @@ app.put('/admin/cards/:cardId/design', upload.none(), async (req, res) => {
       where: { id: req.params.cardId },
       data: {
         collectionId: fields.collectionId,
-        categoryId: fields.categoryId,
+        categoryId: fields.categoryId || null,
         title: fields.title,
         description: fields.description,
         poemText: fields.poemText,

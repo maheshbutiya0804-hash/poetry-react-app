@@ -18,7 +18,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; background: var(--paper-2); }
-a { color: inherit; text-decoration: none; }
+
 button { font: inherit; }
 .container { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
 .narrow { max-width: 900px; }
@@ -347,3 +347,282 @@ body,.hs-site{background:var(--laurentine-ivory);color:var(--laurentine-charcoal
 
 @media(max-width:980px){.reference-header{height:68px}.reference-brand .brand-logo-icon{width:42px;height:42px}.reference-brand .brand-wordmark{font-size:27px}.hs-home-hero{grid-template-columns:1fr;padding-top:58px}.hero-card-demo{max-width:760px}}
 @media(max-width:680px){.reference-brand .brand-logo-icon{width:36px;height:36px}.reference-brand .brand-wordmark{font-size:23px}.hs-home-hero{padding:48px 20px}.hs-home-hero h1{font-size:clamp(3.2rem,15vw,5rem)}.hs-home-section,.hs-content{padding-left:20px;padding-right:20px}.collection-grid{grid-template-columns:1fr}}
+
+/* =========================================================
+   HEARTSTRING HOMEPAGE REFERENCE — EXACT LAURENTINE PASS
+   Scoped to the public homepage only. Values measured against
+   the supplied desktop reference and use the supplied CSS palette.
+   ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+.hsref-site{background:#fbf7ee;color:#26231f}
+.hsref-site,.hsref-site button,.hsref-site input{font-family:"DM Sans",Inter,system-ui,sans-serif}
+.hsref-home{background:#fbf7ee;color:#26231f;overflow:hidden}
+.hsref-home h1,.hsref-home h2,.hsref-home h3,.hsref-home h4,.hsref-home summary{font-family:"Cormorant Garamond",Georgia,serif;color:#26231f}
+.hsref-shell{width:min(1010px,calc(100% - 48px));margin:0 auto}
+.hsref-kicker{margin:0 0 11px!important;color:#b9975b!important;text-transform:uppercase;letter-spacing:.18em;font:700 9px/1.2 "DM Sans",sans-serif!important}
+
+/* exact homepage header */
+.hsref-header{height:52px;min-height:52px;padding:0 28px;background:#fbf7ee;border-bottom:1px solid rgba(57,47,39,.08);box-shadow:none;backdrop-filter:none;position:relative}
+.hsref-header .reference-brand{gap:7px}
+.hsref-header .reference-brand .brand-logo{gap:7px}
+.hsref-header .reference-brand .brand-logo-icon{width:20px;height:20px;object-fit:contain}
+.hsref-header .reference-brand .brand-wordmark{font:500 14px/1 "Cormorant Garamond",Georgia,serif;letter-spacing:0;color:#2f2925}
+.hsref-header .reference-brand .brand-tm{font:500 4px/1 "DM Sans",sans-serif;margin-top:1px;color:#7c7167}
+.hsref-header .reference-center-nav{gap:30px;font-size:9px}
+.hsref-header .reference-center-nav a,.hsref-header .reference-auth-nav>a{color:#514a44}
+.hsref-header .reference-auth-nav{gap:12px;font-size:9px}
+.hsref-header .start-access-button{padding:8px 13px!important;border-radius:5px;background:#193c34;color:#fff!important;line-height:1}
+
+/* hero */
+.hsref-hero{height:430px;background:#fbf7ee}
+.hsref-hero-grid{height:100%;display:grid;grid-template-columns:400px 520px;justify-content:space-between;align-items:center;gap:60px}
+.hsref-hero-copy{padding-top:4px}
+.hsref-hero-copy h1{margin:0 0 18px;font-size:54px;font-weight:500;line-height:.88;letter-spacing:-.037em}
+.hsref-hero-copy h1 em{font-style:normal;font-weight:500;color:#193c34}
+.hsref-hero-body{width:365px;margin:0 0 18px;color:#776d62;font:400 12px/1.65 "DM Sans",sans-serif}
+.hsref-primary{display:inline-flex;align-items:center;justify-content:center;gap:14px;min-height:37px;padding:0 16px;border:0;border-radius:5px;background:#193c34;color:#fff;text-decoration:none;font:600 9px/1 "DM Sans",sans-serif;box-shadow:0 5px 12px rgba(25,60,52,.14)}
+.hsref-primary span{font-size:12px}
+.hsref-hero-copy>small{display:block;margin-top:9px;color:#8a8178;font:400 8px/1.2 "DM Sans",sans-serif}
+.hsref-art{position:relative;width:520px;height:365px;overflow:hidden;border-radius:3px;background:#f4efe7}
+.hsref-envelope{position:absolute;left:143px;top:72px;width:258px;height:196px;border-radius:8px;background:#193c34;transform:rotate(-7deg);box-shadow:0 18px 27px rgba(26,31,25,.22)}
+.hsref-envelope-fold{position:absolute;inset:0;overflow:hidden;border-radius:inherit}
+.hsref-envelope-fold:before{content:"";position:absolute;left:-3%;right:-3%;top:-8%;height:67%;background:#275347;clip-path:polygon(0 0,100% 0,50% 100%);opacity:.65}
+.hsref-envelope-fold:after{content:"";position:absolute;inset:0;background:linear-gradient(138deg,transparent 50%,rgba(7,40,32,.52) 50%)}
+.hsref-note{position:absolute;z-index:3;left:220px;top:84px;width:232px;height:148px;padding:30px 27px;background:#fffdf7;color:#5e554d;transform:rotate(11deg);box-shadow:0 8px 18px rgba(0,0,0,.07)}
+.hsref-note p{margin:0;font:500 12.5px/1.28 "Cormorant Garamond",Georgia,serif}
+.hsref-note b{position:absolute;right:12px;bottom:9px;font:500 6px/1 "DM Sans",sans-serif}
+.hsref-petal{position:absolute;z-index:2;border-radius:999px;background:#ddd9d1}
+.hsref-petal-one{width:48px;height:14px;right:41px;top:30px;transform:rotate(39deg)}
+.hsref-petal-two{width:36px;height:11px;right:24px;top:73px;transform:rotate(20deg)}
+.hsref-branch{position:absolute;z-index:4;width:2px;background:#93a66f;transform-origin:bottom}
+.hsref-branch-one{height:103px;right:38px;bottom:54px;transform:rotate(22deg)}
+.hsref-branch-two{height:66px;right:22px;bottom:44px;transform:rotate(-12deg)}
+.hsref-branch:before,.hsref-branch:after{content:"";position:absolute;width:31px;height:1px;background:#93a66f;left:-28px;top:30px;transform:rotate(26deg)}
+.hsref-branch:after{left:-9px;top:55px;transform:rotate(-31deg)}
+
+/* trust strip */
+.hsref-trust{height:84px;border-top:1px solid rgba(57,47,39,.06);border-bottom:1px solid rgba(57,47,39,.10);background:#fbf7ee}
+.hsref-trust-grid{height:100%;display:grid;grid-template-columns:1fr 1fr}
+.hsref-trust-grid>div{display:flex;align-items:center;justify-content:center;gap:13px}
+.hsref-trust-grid>div+div{border-left:1px solid rgba(57,47,39,.08)}
+.hsref-trust-icon{color:#617e75;font-size:18px;line-height:1}
+.hsref-trust-grid p{display:grid;gap:2px;margin:0}
+.hsref-trust-grid strong{font:500 15px/1.1 "Cormorant Garamond",Georgia,serif;color:#61584f}
+.hsref-trust-grid small{font:400 8px/1.2 "DM Sans",sans-serif;color:#8b8279}
+
+/* subscription */
+.hsref-subscription{height:590px;padding-top:50px;text-align:center;background:#fbf7ee;border-bottom:1px solid rgba(57,47,39,.08)}
+.hsref-sub-inner{width:760px;max-width:calc(100% - 40px);margin:auto}
+.hsref-subscription>div>h2{margin:0 0 5px;font-size:31px;font-weight:500;line-height:1}
+.hsref-sub-copy{margin:0 0 26px;color:#8a8178;font:400 9px/1.4 "DM Sans",sans-serif}
+.hsref-membership-card{width:720px;height:430px;margin:0 auto;padding:31px 31px 26px;border:1px solid #e1d8cb;border-radius:16px;background:linear-gradient(135deg,#fdfaf5,#f3eadf);box-shadow:0 15px 31px rgba(63,47,29,.075)}
+.hsref-membership-card h3{margin:0 0 11px;font-size:32px;font-weight:500;line-height:.92}
+.hsref-price{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-bottom:11px;color:#193c34}
+.hsref-price span{font:500 33px/1 "Cormorant Garamond",Georgia,serif}
+.hsref-price small{font:400 8px/1 "DM Sans",sans-serif;color:#716860}
+.hsref-membership-card>p:not(.hsref-kicker){margin:0 auto 20px;color:#776d62;font:400 8.5px/1.65 "DM Sans",sans-serif}
+.hsref-benefits{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 20px}
+.hsref-benefits article{height:82px;padding:13px 13px;border:1px solid #ece4da;border-radius:9px;background:rgba(255,253,249,.93);text-align:left}
+.hsref-benefits b{display:block;margin-bottom:6px;font:600 8px/1.1 "DM Sans",sans-serif;color:#302a25}
+.hsref-benefits span{display:block;color:#8a8178;font:400 7.5px/1.55 "DM Sans",sans-serif}
+.hsref-small-button{min-height:34px;padding:0 17px;font-size:8px}
+
+/* love preview */
+.hsref-love{height:480px;background:#fbf7ee;border-bottom:1px solid rgba(57,47,39,.09)}
+.hsref-love-inner{height:100%;position:relative;padding-top:66px}
+.hsref-love-heading h3{margin:0;font-size:20px;font-weight:500;line-height:1}
+.hsref-love-heading p{margin:4px 0 14px;color:#7d746b;font:400 8px/1.3 "DM Sans",sans-serif}
+.hsref-moon-card{position:relative;display:block;width:158px;height:230px;padding:13px;border-radius:5px;background:linear-gradient(135deg,#693f46,#9b6d6d);color:#fff;text-decoration:none;box-shadow:none}
+.hsref-moon-card h4{margin:0;font-size:22px;font-weight:500;line-height:.87;color:#fff}
+.hsref-moon-card i{position:absolute;right:9px;top:9px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#faf7f0;color:#82706f;font:400 9px/1 "DM Sans",sans-serif;font-style:normal}
+.hsref-moon-card p{position:absolute;left:13px;bottom:12px;margin:0;font:500 9px/1.28 "Cormorant Garamond",Georgia,serif;color:#fff}
+.hsref-next{position:absolute;right:0;top:84px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:#193c34;color:#fff;text-decoration:none;font:400 20px/1 Georgia,serif;box-shadow:0 4px 10px rgba(25,60,52,.16)}
+
+/* how it works */
+.hsref-how{height:264px;padding-top:45px;text-align:center;background:#fbf7ee;border-bottom:1px solid rgba(57,47,39,.09)}
+.hsref-how h2{margin:0;font-size:31px;font-weight:500;line-height:1}
+.hsref-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:23px}
+.hsref-steps article{height:64px;display:flex;align-items:center;gap:12px;padding:0 15px;border:1px solid #e9e1d7;border-radius:11px;background:#fffdf9;text-align:left;box-shadow:0 7px 17px rgba(63,47,29,.055)}
+.hsref-steps article>b{flex:0 0 25px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:#193c34;color:#fff;font:600 8px/1 "DM Sans",sans-serif}
+.hsref-steps article>p{display:grid;gap:3px;margin:0}
+.hsref-steps strong{font:500 15px/1 "Cormorant Garamond",Georgia,serif;color:#302a25}
+.hsref-steps small{color:#847b72;font:400 7.5px/1.2 "DM Sans",sans-serif}
+
+/* FAQ */
+.hsref-faq{min-height:1695px;padding:62px 0 55px;background:#fbf7ee}
+.hsref-faq-grid{display:grid;grid-template-columns:390px 1fr;gap:44px;align-items:start}
+.hsref-faq-intro{padding-top:2px}
+.hsref-faq-intro h2{margin:0 0 18px;font-size:39px;font-weight:500;line-height:.88;letter-spacing:-.025em}
+.hsref-faq-intro>p:last-child{margin:0;color:#776d62;font:400 8px/1.65 "DM Sans",sans-serif}
+.hsref-faq-list details{margin:0 0 9px;border:1px solid #ece4da;border-radius:11px;background:#fffdfa;box-shadow:0 5px 13px rgba(62,47,29,.055);overflow:hidden}
+.hsref-faq-list summary{min-height:46px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:15px;list-style:none;cursor:pointer;font-size:12px;font-weight:500;line-height:1.2}
+.hsref-faq-list summary::-webkit-details-marker{display:none}
+.hsref-faq-list summary span{flex:0 0 21px;width:21px;height:21px;display:grid;place-items:center;border:1px solid #e8e0d5;border-radius:50%;background:#f8f4ec;color:#786f66;font:500 10px/1 Arial,sans-serif}
+.hsref-faq-list details[open] summary span{transform:rotate(180deg)}
+.hsref-faq-list details>p{margin:0;padding:0 14px 17px;color:#776d62;font:400 8px/1.75 "DM Sans",sans-serif}
+
+/* CTA + footer */
+.hsref-cta{height:245px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#193c34;color:#fff}
+.hsref-cta .hsref-kicker{color:#d2ad68!important;margin-bottom:14px!important}
+.hsref-cta h2{margin:0 0 10px;color:#fff;font-size:36px;font-weight:500;line-height:1}
+.hsref-cta>p:not(.hsref-kicker){margin:0 0 18px;color:#e5ded3;font:400 8.5px/1.4 "DM Sans",sans-serif}
+.hsref-cta>a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 17px;border-radius:5px;background:#fbf7ee;color:#312b26;text-decoration:none;font:600 8px/1 "DM Sans",sans-serif}
+.hsref-footer{height:78px;min-height:78px;padding:0 28px;background:#fbf7ee;border-top:0}
+.hsref-footer .reference-footer-brand{display:flex;align-items:center;gap:9px}
+.hsref-footer .reference-footer-brand .brand-logo{gap:7px}
+.hsref-footer .reference-footer-brand .brand-logo-icon{width:20px;height:20px}
+.hsref-footer .reference-footer-brand .brand-wordmark{font:500 14px/1 "Cormorant Garamond",Georgia,serif}
+.hsref-footer .reference-footer-brand .brand-tm{font-size:4px;margin-top:1px}
+.hsref-footer .reference-footer-brand p{margin:3px 0 0;font-size:7px;color:#776d62}
+.hsref-footer .reference-footer-nav{gap:12px;font-size:8px}
+
+@media(max-width:900px){
+  .hsref-shell{width:min(100% - 32px,680px)}
+  .hsref-header{height:58px;min-height:58px;padding:0 16px;grid-template-columns:1fr auto}
+  .hsref-header .reference-center-nav{display:none}
+  .hsref-header .reference-menu-button{display:block}
+  .hsref-hero{height:auto;padding:52px 0}
+  .hsref-hero-grid{grid-template-columns:1fr;height:auto;gap:38px}
+  .hsref-art{width:100%;max-width:520px;margin:auto}
+  .hsref-trust{height:auto}.hsref-trust-grid{grid-template-columns:1fr}.hsref-trust-grid>div{padding:18px}.hsref-trust-grid>div+div{border-left:0;border-top:1px solid rgba(57,47,39,.08)}
+  .hsref-subscription{height:auto;padding:52px 16px 64px}.hsref-membership-card{height:auto;min-height:430px;width:min(720px,100%)}
+  .hsref-love{height:430px}.hsref-how{height:auto;padding:45px 16px 50px}.hsref-steps{grid-template-columns:1fr}
+  .hsref-faq{min-height:0;padding:55px 0}.hsref-faq-grid{grid-template-columns:1fr;gap:32px}
+  .hsref-cta{height:230px;padding:0 18px}
+}
+@media(max-width:560px){
+  .hsref-hero-copy h1{font-size:48px}.hsref-hero-body{width:auto}.hsref-art{height:290px}.hsref-envelope{left:18%;top:58px;width:53%;height:auto;aspect-ratio:1.32}.hsref-note{left:38%;top:68px;width:48%;height:auto;min-height:120px;padding:22px 18px}.hsref-note p{font-size:10px}
+  .hsref-membership-card{padding:28px 18px}.hsref-benefits{grid-template-columns:1fr}.hsref-benefits article{height:auto;min-height:76px}.hsref-desktop-break{display:none}
+  .hsref-faq-intro h2{font-size:36px}.hsref-cta h2{font-size:31px}
+}
+
+/* Reference calibration pass from 1920x1080 full-page comparison. */
+@media (min-width:901px){
+  .hsref-header{height:72px;min-height:72px;padding-left:38px;padding-right:38px}
+  .hsref-header .reference-brand .brand-logo-icon{width:27px;height:27px}
+  .hsref-header .reference-brand .brand-wordmark{font-size:19px}
+  .hsref-header .reference-center-nav,.hsref-header .reference-auth-nav{font-size:12px}
+  .hsref-header .reference-center-nav{gap:41px}
+  .hsref-header .reference-auth-nav{gap:16px}
+  .hsref-header .start-access-button{padding:11px 18px!important}
+
+  .hsref-shell{width:min(1180px,calc(100% - 64px))}
+  .hsref-kicker{margin-bottom:15px!important;font-size:12px!important}
+  .hsref-hero{height:590px}
+  .hsref-hero-grid{grid-template-columns:440px 610px;gap:72px}
+  .hsref-hero-copy h1{margin-bottom:24px;font-size:74px}
+  .hsref-hero-body{width:430px;margin-bottom:24px;font-size:16px}
+  .hsref-primary{min-height:51px;padding:0 22px;font-size:12px}
+  .hsref-primary span{font-size:16px}
+  .hsref-hero-copy>small{margin-top:12px;font-size:11px}
+  .hsref-art{width:610px;height:500px}
+  .hsref-envelope{left:168px;top:99px;width:303px;height:269px}
+  .hsref-note{left:258px;top:115px;width:272px;height:203px;padding:41px 32px}
+  .hsref-note p{font-size:17px}.hsref-note b{font-size:8px}
+  .hsref-petal-one{width:56px;height:19px;right:48px;top:41px}.hsref-petal-two{width:42px;height:15px;right:28px;top:100px}
+  .hsref-branch-one{height:141px;right:45px;bottom:74px}.hsref-branch-two{height:91px;right:26px;bottom:60px}
+
+  .hsref-trust{height:116px}.hsref-trust-grid>div{gap:18px}.hsref-trust-icon{font-size:25px}.hsref-trust-grid strong{font-size:21px}.hsref-trust-grid small{font-size:11px}
+  .hsref-subscription{height:810px;padding-top:69px}.hsref-sub-inner{width:920px}.hsref-subscription>div>h2{font-size:43px}.hsref-sub-copy{margin-bottom:36px;font-size:12px}
+  .hsref-membership-card{width:900px;height:590px;padding:43px 43px 36px;border-radius:22px}.hsref-membership-card h3{margin-bottom:15px;font-size:44px}.hsref-price{margin-bottom:15px}.hsref-price span{font-size:45px}.hsref-price small{font-size:11px}.hsref-membership-card>p:not(.hsref-kicker){margin-bottom:27px;font-size:11.5px}.hsref-benefits{gap:14px;margin-bottom:27px}.hsref-benefits article{height:113px;padding:18px;border-radius:12px}.hsref-benefits b{margin-bottom:8px;font-size:11px}.hsref-benefits span{font-size:10px}.hsref-small-button{min-height:47px;padding:0 23px;font-size:11px}
+
+  .hsref-love{height:660px}.hsref-love-inner{padding-top:91px}.hsref-love-heading h3{font-size:27px}.hsref-love-heading p{margin-top:6px;margin-bottom:19px;font-size:11px}.hsref-moon-card{width:217px;height:316px;padding:18px}.hsref-moon-card h4{font-size:30px}.hsref-moon-card i{right:12px;top:12px;width:27px;height:27px;font-size:12px}.hsref-moon-card p{left:18px;bottom:16px;font-size:12px}.hsref-next{top:115px;width:41px;height:41px;font-size:27px}
+
+  .hsref-how{height:363px;padding-top:62px}.hsref-how h2{font-size:43px}.hsref-steps{gap:14px;margin-top:32px}.hsref-steps article{height:88px;gap:16px;padding:0 21px;border-radius:15px}.hsref-steps article>b{flex-basis:34px;width:34px;height:34px;font-size:11px}.hsref-steps strong{font-size:21px}.hsref-steps small{font-size:10px}
+
+  .hsref-faq{min-height:2330px;padding:85px 0 76px}.hsref-faq-grid{grid-template-columns:420px 1fr;gap:60px}.hsref-faq-intro h2{margin-bottom:25px;font-size:54px}.hsref-faq-intro>p:last-child{font-size:11px}.hsref-faq-list details{margin-bottom:12px;border-radius:15px}.hsref-faq-list summary{min-height:63px;padding:0 19px;font-size:16px}.hsref-faq-list summary span{flex-basis:29px;width:29px;height:29px;font-size:14px}.hsref-faq-list details>p{padding:0 19px 23px;font-size:11px}
+
+  .hsref-cta{height:337px}.hsref-cta .hsref-kicker{margin-bottom:19px!important}.hsref-cta h2{margin-bottom:14px;font-size:50px}.hsref-cta>p:not(.hsref-kicker){margin-bottom:25px;font-size:12px}.hsref-cta>a{min-height:47px;padding:0 23px;font-size:11px}
+  .hsref-footer{height:107px;min-height:107px;padding:0 38px}.hsref-footer .reference-footer-brand .brand-logo-icon{width:27px;height:27px}.hsref-footer .reference-footer-brand .brand-wordmark{font-size:19px}.hsref-footer .reference-footer-brand p{font-size:10px}.hsref-footer .reference-footer-nav{gap:16px;font-size:11px}
+}
+
+/* =========================================================
+   HEARTSTRING 1920x1080 SCREENSHOT — precision pass v5
+   Corrects v4's over-wide desktop calibration and uses the
+   exact dominant colors present in the supplied original CSS.
+   ========================================================= */
+@media (min-width:901px){
+  .hsref-site,.hsref-home{background:#fcfaf7;color:#2f251c}
+  .hsref-header,.hsref-footer{background:#fcfaf7}
+  .hsref-shell{width:min(1010px,calc(100% - 48px))}
+
+  .hsref-header{height:52px;min-height:52px;padding:0 28px}
+  .hsref-header .reference-brand .brand-logo-icon{width:20px;height:20px}
+  .hsref-header .reference-brand .brand-wordmark{font-size:14px}
+  .hsref-header .reference-center-nav,.hsref-header .reference-auth-nav{font-size:9px}
+  .hsref-header .reference-center-nav{gap:30px}
+  .hsref-header .reference-auth-nav{gap:12px}
+  .hsref-header .start-access-button{padding:8px 13px!important;background:#17392f}
+
+  .hsref-kicker{margin-bottom:11px!important;font-size:9px!important;color:#a88437!important}
+  .hsref-hero{height:430px;background:#fcfaf7}
+  .hsref-hero-grid{grid-template-columns:400px 520px;gap:60px}
+  .hsref-hero-copy h1{margin-bottom:18px;font-size:54px;color:#2f251c}
+  .hsref-hero-copy h1 em{color:#17392f}
+  .hsref-hero-body{width:365px;margin-bottom:18px;font-size:12px}
+  .hsref-primary{min-height:37px;padding:0 16px;font-size:9px;background:#17392f}
+  .hsref-primary span{font-size:12px}.hsref-hero-copy>small{margin-top:9px;font-size:8px}
+  .hsref-art{width:520px;height:365px;background:#f7f4ef}
+  .hsref-envelope{left:143px;top:72px;width:258px;height:196px;background:#17392f}
+  .hsref-note{left:220px;top:84px;width:232px;height:148px;padding:30px 27px;background:#fffdfa}
+  .hsref-note p{font-size:12.5px}.hsref-note b{font-size:6px}
+  .hsref-petal-one{width:48px;height:14px;right:41px;top:30px}.hsref-petal-two{width:36px;height:11px;right:24px;top:73px}
+  .hsref-branch-one{height:103px;right:38px;bottom:54px}.hsref-branch-two{height:66px;right:22px;bottom:44px}
+
+  .hsref-trust{height:84px;background:#f9f5ef}.hsref-trust-grid>div{gap:13px}.hsref-trust-icon{font-size:18px}.hsref-trust-grid strong{font-size:15px}.hsref-trust-grid small{font-size:8px}
+
+  .hsref-subscription{height:610px;padding-top:52px;background:#fcfaf7}.hsref-sub-inner{width:760px}.hsref-subscription>div>h2{font-size:31px}.hsref-sub-copy{margin-bottom:27px;font-size:9px}
+  .hsref-membership-card{width:720px;height:445px;padding:32px 34px 28px;border-radius:16px;background:#f9f5ef}.hsref-membership-card h3{margin-bottom:11px;font-size:33px}.hsref-price{margin-bottom:11px}.hsref-price span{font-size:34px;color:#17392f}.hsref-price small{font-size:8px}.hsref-membership-card>p:not(.hsref-kicker){margin-bottom:20px;font-size:8.5px}.hsref-benefits{gap:10px;margin-bottom:20px}.hsref-benefits article{height:85px;padding:14px;border-radius:9px;background:#fffdfa}.hsref-benefits b{margin-bottom:6px;font-size:8px}.hsref-benefits span{font-size:7.5px}.hsref-small-button{min-height:35px;padding:0 17px;font-size:8px}
+
+  .hsref-love{height:500px;background:#fcfaf7}.hsref-love-inner{padding-top:69px}.hsref-love-heading h3{font-size:20px}.hsref-love-heading p{margin-top:4px;margin-bottom:14px;font-size:8px}.hsref-moon-card{width:164px;height:239px;padding:14px;background:#7d4a4a}.hsref-moon-card h4{font-size:23px}.hsref-moon-card i{right:9px;top:9px;width:20px;height:20px;font-size:9px}.hsref-moon-card p{left:13px;bottom:12px;font-size:9px}.hsref-next{top:87px;width:30px;height:30px;font-size:20px;background:#17392f}
+
+  .hsref-how{height:274px;padding-top:47px;background:#fcfaf7}.hsref-how h2{font-size:32px}.hsref-steps{gap:10px;margin-top:24px}.hsref-steps article{height:66px;gap:12px;padding:0 16px;border-radius:11px;background:#fffdfa}.hsref-steps article>b{flex-basis:25px;width:25px;height:25px;font-size:8px;background:#17392f}.hsref-steps strong{font-size:15px}.hsref-steps small{font-size:7.5px}
+
+  .hsref-faq{min-height:1715px;padding:64px 0 58px;background:#f9f5ef}.hsref-faq-grid{grid-template-columns:390px 1fr;gap:44px}.hsref-faq-intro h2{margin-bottom:18px;font-size:39px}.hsref-faq-intro>p:last-child{font-size:8px}.hsref-faq-list details{margin-bottom:9px;border-radius:11px;background:#fffdfa}.hsref-faq-list summary{min-height:46px;padding:0 14px;font-size:12px}.hsref-faq-list summary span{flex-basis:21px;width:21px;height:21px;font-size:10px}.hsref-faq-list details>p{padding:0 14px 17px;font-size:8px}
+
+  .hsref-cta{height:245px;background:#17392f}.hsref-cta h2{margin-bottom:10px;font-size:36px}.hsref-cta>p:not(.hsref-kicker){margin-bottom:18px;font-size:8.5px}.hsref-cta>a{min-height:34px;padding:0 17px;font-size:8px;background:#fcfaf7}
+  .hsref-footer{height:78px;min-height:78px;padding:0 28px}.hsref-footer .reference-footer-brand .brand-logo-icon{width:20px;height:20px}.hsref-footer .reference-footer-brand .brand-wordmark{font-size:14px}.hsref-footer .reference-footer-brand p{font-size:7px}.hsref-footer .reference-footer-nav{gap:12px;font-size:8px}
+}
+
+/* =========================================================
+   HEARTSTRING SCREENSHOT — precision pass v6
+   Same vertical geometry as the reference-height match (v4),
+   but with the narrower centered content rail + intentional
+   desktop overflow visible in the supplied Heartstring capture.
+   ========================================================= */
+@media (min-width:901px){
+  .hsref-site,.hsref-home{background:#fcfaf7;color:#2f251c}
+  .hsref-header,.hsref-footer{background:#fcfaf7}
+  .hsref-shell{width:920px;max-width:none}
+
+  .hsref-header{height:72px;min-height:72px;padding:0 38px}
+  .hsref-header .reference-brand .brand-logo-icon{width:27px;height:27px}
+  .hsref-header .reference-brand .brand-wordmark{font-size:19px}
+  .hsref-header .reference-center-nav,.hsref-header .reference-auth-nav{font-size:12px}
+  .hsref-header .reference-center-nav{gap:41px}.hsref-header .reference-auth-nav{gap:16px}
+  .hsref-header .start-access-button{padding:11px 18px!important;background:#17392f}
+
+  .hsref-kicker{margin-bottom:15px!important;font-size:12px!important;color:#a88437!important}
+  .hsref-hero{height:590px;background:#fcfaf7;overflow:hidden}
+  .hsref-hero-grid{grid-template-columns:440px 610px;gap:72px}
+  .hsref-hero-copy h1{margin-bottom:24px;font-size:74px;white-space:nowrap;color:#2f251c}
+  .hsref-hero-copy h1 em{color:#17392f}.hsref-hero-body{width:430px;margin-bottom:24px;font-size:16px}
+  .hsref-primary{min-height:51px;padding:0 22px;font-size:12px;background:#17392f}.hsref-primary span{font-size:16px}.hsref-hero-copy>small{margin-top:12px;font-size:11px}
+  .hsref-art{width:610px;height:500px;background:#f7f4ef}.hsref-envelope{left:168px;top:99px;width:303px;height:269px;background:#17392f}.hsref-note{left:258px;top:115px;width:272px;height:203px;padding:41px 32px;background:#fffdfa}.hsref-note p{font-size:17px}.hsref-note b{font-size:8px}
+  .hsref-petal-one{width:56px;height:19px;right:48px;top:41px}.hsref-petal-two{width:42px;height:15px;right:28px;top:100px}.hsref-branch-one{height:141px;right:45px;bottom:74px}.hsref-branch-two{height:91px;right:26px;bottom:60px}
+
+  .hsref-trust{height:116px;background:#f9f5ef}.hsref-trust-grid{width:920px}.hsref-trust-grid>div{gap:18px}.hsref-trust-icon{font-size:25px}.hsref-trust-grid strong{font-size:21px}.hsref-trust-grid small{font-size:11px}
+
+  .hsref-subscription{height:810px;padding-top:69px;background:#fcfaf7}.hsref-sub-inner{width:920px;max-width:none}.hsref-subscription>div>h2{font-size:43px}.hsref-sub-copy{margin-bottom:36px;font-size:12px}
+  .hsref-membership-card{width:900px;height:590px;padding:43px 43px 36px;border-radius:22px;background:#f9f5ef}.hsref-membership-card h3{margin-bottom:15px;font-size:44px}.hsref-price{margin-bottom:15px}.hsref-price span{font-size:45px;color:#17392f}.hsref-price small{font-size:11px}.hsref-membership-card>p:not(.hsref-kicker){margin-bottom:27px;font-size:11.5px}.hsref-benefits{gap:14px;margin-bottom:27px}.hsref-benefits article{height:113px;padding:18px;border-radius:12px;background:#fffdfa}.hsref-benefits b{margin-bottom:8px;font-size:11px}.hsref-benefits span{font-size:10px}.hsref-small-button{min-height:47px;padding:0 23px;font-size:11px}
+
+  .hsref-love{height:660px;background:#fcfaf7;overflow:hidden}.hsref-love-inner{padding-top:91px}.hsref-love-heading h3{font-size:27px}.hsref-love-heading p{margin-top:6px;margin-bottom:19px;font-size:11px}.hsref-moon-card{width:217px;height:316px;padding:18px;background:#7d4a4a}.hsref-moon-card h4{font-size:30px}.hsref-moon-card i{right:12px;top:12px;width:27px;height:27px;font-size:12px}.hsref-moon-card p{left:18px;bottom:16px;font-size:12px}.hsref-next{top:115px;right:-105px;width:41px;height:41px;font-size:27px;background:#17392f}
+
+  .hsref-how{height:363px;padding-top:62px;background:#fcfaf7;overflow:hidden}.hsref-how h2{font-size:43px}.hsref-steps{grid-template-columns:repeat(3,350px);gap:14px;margin-top:32px}.hsref-steps article{height:88px;gap:16px;padding:0 21px;border-radius:15px;background:#fffdfa}.hsref-steps article>b{flex-basis:34px;width:34px;height:34px;font-size:11px;background:#17392f}.hsref-steps strong{font-size:21px}.hsref-steps small{font-size:10px}
+
+  .hsref-faq{min-height:2330px;padding:85px 0 76px;background:#f9f5ef;overflow:hidden}.hsref-faq-grid{grid-template-columns:420px 720px;gap:60px}.hsref-faq-intro h2{margin-bottom:25px;font-size:54px}.hsref-faq-intro>p:last-child{font-size:11px}.hsref-faq-list details{margin-bottom:12px;border-radius:15px;background:#fffdfa}.hsref-faq-list summary{min-height:63px;padding:0 19px;font-size:16px}.hsref-faq-list summary span{flex-basis:29px;width:29px;height:29px;font-size:14px}.hsref-faq-list details>p{padding:0 19px 23px;font-size:11px}
+
+  .hsref-cta{height:337px;background:#17392f}.hsref-cta .hsref-kicker{margin-bottom:19px!important}.hsref-cta h2{margin-bottom:14px;font-size:50px}.hsref-cta>p:not(.hsref-kicker){margin-bottom:25px;font-size:12px}.hsref-cta>a{min-height:47px;padding:0 23px;font-size:11px;background:#fcfaf7}
+  .hsref-footer{height:107px;min-height:107px;padding:0 38px}.hsref-footer .reference-footer-brand .brand-logo-icon{width:27px;height:27px}.hsref-footer .reference-footer-brand .brand-wordmark{font-size:19px}.hsref-footer .reference-footer-brand p{font-size:10px}.hsref-footer .reference-footer-nav{gap:16px;font-size:11px}
+}

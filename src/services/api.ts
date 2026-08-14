@@ -581,3 +581,37 @@ export async function createSubscriptionCheckout(): Promise<{ sessionId?: string
   if (!response.ok || !body.url) throw new Error(body.message ?? 'Unable to start subscription checkout')
   return { sessionId: body.sessionId, url: body.url }
 }
+
+export type BulkImportItem = {
+  id: string
+  originalFilename: string
+  title: string
+  cardId?: string | null
+  pageCount?: number | null
+  status: string
+  errorMessage?: string | null
+}
+export type BulkImportJob = {
+  id: string
+  collectionId: string
+  originalZipName: string
+  totalFiles: number
+  processedFiles: number
+  successCount: number
+  failedCount: number
+  status: string
+  errorMessage?: string | null
+  items: BulkImportItem[]
+}
+export async function adminStartBulkPdfImport(formData: FormData): Promise<{id:string,status:string}> {
+  const response = await apiFetch(`${API_BASE}/admin/cards/bulk-import`, { method:'POST', body:formData })
+  const body = await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message ?? 'Unable to start bulk import')
+  return body
+}
+export async function adminGetBulkPdfImport(jobId:string): Promise<BulkImportJob> {
+  const response = await apiFetch(`${API_BASE}/admin/cards/bulk-import/${jobId}`)
+  const body = await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message ?? 'Unable to load import progress')
+  return body
+}

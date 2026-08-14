@@ -69,6 +69,46 @@ model Card {
   @@map("card")
 }
 
+model CardImportJob {
+  id              String           @id @default(cuid()) @db.VarChar(191)
+  collectionId    String           @db.VarChar(191)
+  originalZipName String           @db.VarChar(255)
+  zipPath         String           @db.VarChar(500)
+  totalFiles      Int              @default(0)
+  processedFiles  Int              @default(0)
+  successCount    Int              @default(0)
+  failedCount     Int              @default(0)
+  status          String           @default("QUEUED") @db.VarChar(32)
+  errorMessage    String?          @db.Text
+  publishOnImport Boolean          @default(false)
+  items           CardImportItem[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([collectionId, createdAt])
+  @@map("cardimportjob")
+}
+
+model CardImportItem {
+  id               String        @id @default(cuid()) @db.VarChar(191)
+  jobId            String        @db.VarChar(191)
+  job              CardImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  originalFilename String        @db.VarChar(500)
+  title            String        @db.VarChar(191)
+  cardId           String?       @db.VarChar(191)
+  pdfPath          String?       @db.VarChar(500)
+  previewPath      String?       @db.VarChar(500)
+  pageCount        Int?
+  status           String        @default("QUEUED") @db.VarChar(32)
+  errorMessage     String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([jobId, status])
+  @@map("cardimportitem")
+}
+
 model User {
   id               String               @id @default(cuid()) @db.VarChar(191)
   fullName         String               @db.VarChar(191)
