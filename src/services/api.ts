@@ -1,6 +1,6 @@
 import type { LoveNoteCard, LoveNoteCollection } from '../types/loveNote'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api'
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
 
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => fetch(input, { ...init, credentials: 'include' })
 
@@ -21,7 +21,7 @@ export type RegisterInput = { fullName: string; email: string; phone?: string; p
 
 function normalizeAuthUser(user: AuthUser): AuthUser {
   if (user.profileImageUrl && !/^https?:/i.test(user.profileImageUrl)) {
-    const serverBase = API_BASE.replace(/\/api\/?$/, '')
+    const serverBase = API_BASE.replace(/\/$/, '').replace(/\/api$/, '')
     user = {...user, profileImageUrl: `${serverBase}/uploads/${user.profileImageUrl.replace(/^\/+/, '')}`}
   }
   return user
@@ -573,3 +573,11 @@ export async function getMyOrders(params:{search?:string;status?:string}={}):Pro
 }
 export async function getMyOrder(orderId:string):Promise<UserOrder>{ return authJson<UserOrder>(`/orders/${orderId}`) }
 export async function cancelMyOrder(orderId:string):Promise<UserOrder>{ return authJson<UserOrder>(`/orders/${orderId}/cancel`,{method:'PATCH'}) }
+
+
+export async function createSubscriptionCheckout(): Promise<{ sessionId?: string; url: string }> {
+  const response = await apiFetch(`${API_BASE}/billing/subscription-checkout`, { method: 'POST' })
+  const body = await response.json().catch(() => ({})) as { sessionId?: string; url?: string; message?: string }
+  if (!response.ok || !body.url) throw new Error(body.message ?? 'Unable to start subscription checkout')
+  return { sessionId: body.sessionId, url: body.url }
+}

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { LoveNoteCard } from '../../components/love-notes/LoveNoteCard'
 import type { LoveNoteCard as LoveNoteCardType, LoveNoteCollection } from '../../types/loveNote'
-import { getCard, getCollectionCards, getCollections } from '../../services/api'
+import { createSubscriptionCheckout, getCard, getCollectionCards, getCollections } from '../../services/api'
+import { useAuth } from '../../auth/AuthContext'
 
 function LoadingBlock({ text = 'Loading…' }: { text?: string }) {
   return <div className="empty-product"><p>{text}</p></div>
@@ -96,6 +97,10 @@ export function CollectionPage() {
 
 export function LoveNoteDetailPage() {
   const { cardId = '' } = useParams()
+  const { user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [checkoutError, setCheckoutError] = useState('')
   const [card, setCard] = useState<LoveNoteCardType | null>(null)
   const [collectionCards, setCollectionCards] = useState<LoveNoteCardType[]>([])
   const [loading, setLoading] = useState(true)
@@ -114,6 +119,23 @@ export function LoveNoteDetailPage() {
   }, [cardId])
 
   const related = useMemo(() => collectionCards.filter(item => item.id !== card?.id).slice(0, 3), [collectionCards, card])
+
+  async function subscribe() {
+    if (authLoading) return
+    if (!user) {
+      navigate('/login', { state: { from: `/cards/${cardId}` } })
+      return
+    }
+    setCheckoutError('')
+    setCheckoutLoading(true)
+    try {
+      const checkout = await createSubscriptionCheckout()
+      window.location.assign(checkout.url)
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Unable to start checkout.')
+      setCheckoutLoading(false)
+    }
+  }
 
   if (notFound) return <Navigate to="/love-notes" replace />
   if (loading || !card) return <main className="reference-card-page"><LoadingBlock /></main>
@@ -141,7 +163,8 @@ export function LoveNoteDetailPage() {
           <span className="reference-category-pill">○ Love</span>
           <h1>{card.title}</h1>
           <p className="reference-card-description">{card.excerpt}</p>
-          <Link className="reference-subscribe-button" to="/register">Subscribe for Full Access – $8.99/month</Link>
+          <button className="reference-subscribe-button" type="button" onClick={subscribe} disabled={checkoutLoading || authLoading}>{checkoutLoading ? 'Opening secure checkout…' : 'Subscribe for Full Access – $8.99/month'}</button>
+          {checkoutError && <p className="auth-error" role="alert">{checkoutError}</p>}
           <p className="reference-save-note">Customization and downloads are available after saving, from the Saved Library page.</p>
           {card.pdfUrl&&<a className="reference-demo-download" href={card.pdfUrl} download={`${card.slug ?? card.id}.pdf`}>Developer preview: download source PDF</a>}
         </aside>

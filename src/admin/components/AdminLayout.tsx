@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import logo from '../../assets/branding/heartstring-notes-logo.png'
+import logo from '../../assets/branding/laurentine-logo.png'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 
@@ -13,7 +13,7 @@ export function AdminLayout(){
   const { user, logout } = useAuth(); const navigate = useNavigate()
   async function signOut(){ try { await logout() } finally { navigate('/login',{replace:true}) } }
   return <div className="hs-admin"><aside className="hs-sidebar">
-    <div className="hs-brand"><img src={logo}/><div><strong>Heartstring Notes</strong><span>Admin console</span></div></div>
+    <div className="hs-brand"><img src={logo}/><div><strong>Laurentine</strong><span>Admin console</span></div></div>
     <div className="hs-nav-label">ADMIN</div><nav>{nav.map(([icon,title,sub,to])=><NavLink key={to} end={to==='/admin'} to={to} className={({isActive})=>`hs-nav-item ${isActive?'active':''}`}><i>{icon}</i><span><b>{title}</b><small>{sub}</small></span></NavLink>)}</nav>
     <div className="hs-admin-user"><b>{user?.fullName}</b><small>{user?.email}</small></div>
     <button className="hs-logout" onClick={signOut}><i>↪</i><span><b>Logout</b><small>Sign out securely</small></span></button>
