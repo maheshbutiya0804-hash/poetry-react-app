@@ -26,20 +26,56 @@ export function LibraryPage(){
     return !search||x.card.title.toLowerCase().includes(search.toLowerCase())
   }),[items,search,filter])
 
-  async function toggleUsed(item:SavedLibraryCard){await setLibraryCardUsed(item.card.id,!item.usedAt);setItems(v=>v.map(x=>x.id===item.id?{...x,usedAt:x.usedAt?null:new Date().toISOString()}:x))}
-  async function subscribe(){setCheckout(true);setError('');try{const result=await createSubscriptionCheckout('/library');window.location.assign(result.url)}catch(e){setError(e instanceof Error?e.message:'Unable to start checkout');setCheckout(false)}}
+  async function toggleUsed(item:SavedLibraryCard){
+    await setLibraryCardUsed(item.card.id,!item.usedAt)
+    setItems(v=>v.map(x=>x.id===item.id?{...x,usedAt:x.usedAt?null:new Date().toISOString()}:x))
+  }
 
-  if(loading)return <main className="min-h-[70vh] bg-[#f8f3eb] grid place-items-center text-[#756b61]">Loading your library…</main>
+  async function subscribe(){
+    setCheckout(true)
+    setError('')
+    try{
+      const result=await createSubscriptionCheckout('/library')
+      window.location.assign(result.url)
+    }catch(e){
+      setError(e instanceof Error?e.message:'Unable to start checkout')
+      setCheckout(false)
+    }
+  }
 
-  return <main className="min-h-[calc(100vh-88px)] bg-[#f8f3eb] px-6 py-[78px] text-[#2b2621] md:px-12 lg:px-[76px]">
-    <section className="mx-auto max-w-[1800px]"><h1 className="font-serif text-[clamp(3.4rem,5vw,4.2rem)] font-semibold leading-none tracking-[-.04em]">Your Library</h1><p className="mt-6 max-w-[820px] text-[1.12rem] leading-[1.7] text-[#756b61]">Cards you've saved to return to, share, or send – alongside poem requests still<br className="hidden md:block"/> being crafted and those ready to revisit.</p></section>
+  if(loading)return <main className="flex-1 flex flex-col"><section className="flex flex-1 items-center justify-center bg-[#f7f3ed] text-muted">Loading your library…</section></main>
 
-    {active===false?<section className="mx-auto mt-[54px] grid min-h-[540px] max-w-[1800px] place-items-center rounded-[28px] border border-[#e2d8cb] bg-[#fcfaf7] px-8 text-center shadow-[0_14px_34px_rgba(45,34,24,.05)]"><div><div className="mx-auto grid h-[92px] w-[92px] place-items-center rounded-full bg-[#e7e7e1] text-[2.4rem] text-[#17392f]">▢</div><h2 className="mt-8 font-serif text-[clamp(2.7rem,4vw,3.4rem)] font-semibold leading-none tracking-[-.035em]">Subscribe to Access Your Library</h2><p className="mx-auto mt-7 max-w-[760px] text-[1.12rem] leading-[1.75] text-[#756b61]">Saved cards and custom poetry requests are available to subscribers.<br/>Start your journey to unlock your personal poetry collection.</p>{error&&<p className="mt-4 text-sm text-red-700">{error}</p>}<button disabled={checkout} onClick={subscribe} className="mt-9 rounded-full bg-[#17392f] px-9 py-[18px] text-lg font-semibold text-white shadow-[0_12px_25px_rgba(23,57,47,.18)] disabled:opacity-60">{checkout?'Opening checkout…':'Subscribe Now'}</button></div></section>:<>
-      <section className="mx-auto mt-[54px] max-w-[1800px]"><div className="mb-6 flex gap-3"><button className="rounded-full border border-[#b9cbc4] bg-[#e8f0ed] px-5 py-3 text-sm font-semibold text-[#17392f]">Saved Cards</button><button className="rounded-full border border-[#ded3c6] bg-[#f8f3eb] px-5 py-3 text-sm text-[#655b52]">Your Requests</button></div>
-        <div className="min-h-[610px] rounded-[28px] border border-[#e2d8cb] bg-[#fcfaf7] p-6 shadow-[0_14px_34px_rgba(45,34,24,.05)] md:p-8"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><label className="flex h-14 w-full max-w-[420px] items-center gap-3 rounded-full border border-[#ded3c6] bg-[#f6efe5] px-6 text-[#81766c]">⌕ <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search your saved cards..." className="w-full bg-transparent outline-none"/></label><div className="flex gap-2">{(['ALL','USED','NOT_USED'] as const).map(x=><button key={x} className={`rounded-full border px-4 py-2 text-sm ${filter===x?'border-[#b9cbc4] bg-[#e8f0ed] text-[#17392f]':'border-[#ded3c6] bg-white text-[#655b52]'}`} onClick={()=>setFilter(x)}>{x==='NOT_USED'?'Not Used':x[0]+x.slice(1).toLowerCase()}</button>)}</div></div>
-          {error?<div className="grid min-h-[340px] place-items-center text-red-700">{error}</div>:!visible.length?<div className="grid min-h-[340px] place-items-center text-[#81766c]">No saved cards found.</div>:<div className="mt-7 grid grid-cols-2 gap-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{visible.map(item=><article key={item.id}><Link to={`/cards/${item.card.id}`}><LoveNoteCard card={item.card}/></Link><div className="mt-3 flex items-center gap-2"><a href={cardPdfUrl(item.card.id)} target="_blank" rel="noreferrer" className="grid h-10 w-10 place-items-center rounded-full bg-[#17392f] text-white" title="View full PDF">◉</a><a href={cardPdfUrl(item.card.id,true)} className="grid h-10 w-10 place-items-center rounded-full border border-[#d8cec2] bg-white text-[#17392f]" title="Download PDF">⇩</a><button onClick={()=>toggleUsed(item)} className="rounded-full border border-[#d8cec2] bg-white px-3 py-2 text-xs">{item.usedAt?'Used':'Mark Used'}</button></div></article>)}</div>}
-        </div>
-      </section>
-    </>}
+  return <main className="flex-1 flex flex-col">
+    <section className="flex flex-1 flex-col bg-[#f7f3ed] px-16 pb-12 pt-12 text-charcoal max-[1180px]:px-7 max-[760px]:px-[18px] max-[760px]:pt-8">
+      <div className="mx-auto flex w-full max-w-[1220px] flex-1 flex-col">
+        <header className="mb-8">
+          <h1 className="font-serif text-[50px] font-semibold leading-[0.95] tracking-[-0.03em] max-[760px]:text-[38px]">Your Library</h1>
+          <p className="mt-3 max-w-[560px] text-[15px] leading-7 text-muted">Cards you've saved to return to, share, or send - alongside poem requests still being crafted and those ready to revisit.</p>
+        </header>
+
+        {active===false ? (
+          <section className="flex flex-1 flex-col items-center justify-center rounded-[22px] border border-[rgba(56,45,36,0.08)] bg-white/30 p-12 text-center shadow-[0_10px_28px_rgba(44,32,23,0.06)] max-[760px]:p-8">
+            <div className="mx-auto flex max-w-lg flex-col items-center gap-5">
+              <div className="grid h-16 w-16 place-items-center rounded-full bg-forest/10 text-forest">
+                <svg aria-hidden="true" className="h-7 w-7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+              </div>
+              <h2 className="font-serif text-[32px] font-semibold leading-[0.96] tracking-[-0.02em] text-charcoal max-[760px]:text-[26px]">Subscribe to Access Your Library</h2>
+              <p className="text-[15px] leading-7 text-muted">Saved cards and custom poetry requests are available to subscribers. Start your journey to unlock your personal poetry collection.</p>
+              {error&&<p className="text-sm text-red-700">{error}</p>}
+              <button type="button" disabled={checkout} onClick={subscribe} className="mt-2 inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full px-7 text-sm font-medium text-ivory shadow-[0_12px_24px_rgba(23,57,47,0.18)] transition focus:outline-none focus:ring-2 focus:ring-forest/25 focus:ring-offset-2 focus:ring-offset-ivory cursor-pointer bg-forest hover:-translate-y-px hover:bg-forest/90 disabled:cursor-not-allowed disabled:opacity-60">{checkout?'Opening checkout…':'Subscribe Now'}</button>
+            </div>
+          </section>
+        ) : (
+          <section className="flex flex-1 flex-col rounded-[22px] border border-[rgba(56,45,36,0.08)] bg-white/30 p-6 shadow-[0_10px_28px_rgba(44,32,23,0.06)] max-[760px]:p-4">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex gap-3"><button className="rounded-full border border-forest/20 bg-forest/10 px-5 py-3 text-sm font-semibold text-forest">Saved Cards</button><button className="rounded-full border border-[rgba(56,45,36,0.12)] bg-[#f7f3ed] px-5 py-3 text-sm text-muted">Your Requests</button></div>
+              <div className="flex flex-wrap gap-2">{(['ALL','USED','NOT_USED'] as const).map(x=><button key={x} className={`rounded-full border px-4 py-2 text-sm ${filter===x?'border-forest bg-forest text-ivory':'border-[rgba(56,45,36,0.12)] bg-[#fcfaf7] text-muted'}`} onClick={()=>setFilter(x)}>{x==='NOT_USED'?'Not Used':x[0]+x.slice(1).toLowerCase()}</button>)}</div>
+            </div>
+            <label className="relative block"><svg aria-hidden="true" className="absolute left-5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#877b70]" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search your saved cards..." className="h-[58px] w-full rounded-full border border-[rgba(57,47,39,0.1)] bg-[#f4eee5] px-[22px] py-0 pl-[54px] text-charcoal outline-none"/></label>
+            {error?<div className="grid min-h-[340px] place-items-center text-red-700">{error}</div>:!visible.length?<div className="grid min-h-[340px] place-items-center text-muted">No saved cards found.</div>:<div className="mt-7 grid grid-cols-2 gap-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{visible.map(item=><article key={item.id}><Link to={`/cards/${item.card.id}`}><LoveNoteCard card={item.card}/></Link><div className="mt-3 flex items-center gap-2"><a href={cardPdfUrl(item.card.id)} target="_blank" rel="noreferrer" className="grid h-10 w-10 place-items-center rounded-full bg-forest text-ivory" title="View full PDF">◉</a><a href={cardPdfUrl(item.card.id,true)} className="grid h-10 w-10 place-items-center rounded-full border border-[rgba(56,45,36,0.12)] bg-[#fcfaf7] text-forest" title="Download PDF">⇩</a><button onClick={()=>toggleUsed(item)} className="rounded-full border border-[rgba(56,45,36,0.12)] bg-[#fcfaf7] px-3 py-2 text-xs">{item.usedAt?'Used':'Mark Used'}</button></div></article>)}</div>}
+          </section>
+        )}
+      </div>
+    </section>
   </main>
 }
