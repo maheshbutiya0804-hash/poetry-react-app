@@ -879,6 +879,32 @@ async function generatePdfPreview(pdfBuffer: Buffer, outputPath: string) {
     context.fillStyle = '#ffffff'
     context.fillRect(0, 0, canvas.width, canvas.height)
     await page.render({ canvasContext: context as any, viewport }).promise
+
+    // Build a protected public teaser from the rendered first page.
+    // The upper portion remains clear while blur fades in around the midpoint
+    // and becomes fully opaque toward the bottom. master.pdf is never modified.
+    const blurredCanvas = canvasModule.createCanvas(canvas.width, canvas.height)
+    const blurredContext = blurredCanvas.getContext('2d')
+    blurredContext.save()
+    blurredContext.filter = 'blur(22px)'
+    // Slight overscan prevents transparent/white blur edges around the card.
+    const overscan = 30
+    blurredContext.drawImage(canvas, -overscan, -overscan, canvas.width + overscan * 2, canvas.height + overscan * 2)
+    blurredContext.restore()
+
+    // Keep only the lower part of the blurred copy with a smooth alpha ramp.
+    blurredContext.globalCompositeOperation = 'destination-in'
+    const blurMask = blurredContext.createLinearGradient(0, canvas.height * 0.42, 0, canvas.height * 0.72)
+    blurMask.addColorStop(0, 'rgba(0,0,0,0)')
+    blurMask.addColorStop(0.35, 'rgba(0,0,0,0.38)')
+    blurMask.addColorStop(0.7, 'rgba(0,0,0,0.82)')
+    blurMask.addColorStop(1, 'rgba(0,0,0,1)')
+    blurredContext.fillStyle = blurMask
+    blurredContext.fillRect(0, canvas.height * 0.42, canvas.width, canvas.height * 0.58)
+    blurredContext.globalCompositeOperation = 'source-over'
+
+    context.drawImage(blurredCanvas, 0, 0)
+
     // JPEG keeps previews lightweight and is universally supported by browsers.
     const jpeg = await canvas.encode('jpeg', 82)
     await fs.writeFile(outputPath, jpeg)
