@@ -651,3 +651,29 @@ export async function adminGetBulkPdfImport(jobId:string): Promise<BulkImportJob
   if(!response.ok) throw new Error(body.message ?? 'Unable to load import progress')
   return body
 }
+
+export type CommunityPost = {
+  id: string
+  authorName: string
+  anonymous: boolean
+  title: string
+  body: string
+  category: string
+  collectionId?: string | null
+  collection?: { id:string; name:string; slug?:string; description?:string | null } | null
+  card?: LoveNoteCard | null
+  createdAt: string
+}
+
+export async function getCommunityPosts(params:{search?:string; collectionId?:string}={}):Promise<CommunityPost[]> {
+  const qs=new URLSearchParams()
+  if(params.search) qs.set('search',params.search)
+  if(params.collectionId) qs.set('collectionId',params.collectionId)
+  const response=await apiFetch(`${API_BASE}/community${qs.size?`?${qs}`:''}`)
+  if(!response.ok) throw new Error('Unable to load community stories')
+  return response.json()
+}
+
+export async function createCommunityPost(input:{cardId:string;title:string;body:string;anonymous:boolean}):Promise<CommunityPost>{
+  return authJson<CommunityPost>('/community',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})
+}

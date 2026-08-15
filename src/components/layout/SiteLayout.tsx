@@ -27,6 +27,7 @@ export function SiteLayout(){
           <nav aria-label="Primary navigation" className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center gap-8.5 text-base text-[#53493f] max-[1024px]:hidden">
             <Link className="relative py-1.5 text-[#53493f]" to="/love-notes">Browse</Link>
             <Link className="relative py-1.5 text-[#53493f]" to="/love-notes">Categories</Link>
+            {user&&<><Link className="relative py-1.5 text-[#53493f]" to="/library">Library</Link><Link className="relative py-1.5 text-[#53493f]" to="/forum">Forum</Link><Link className="relative py-1.5 text-[#53493f]" to="/orders">Orders</Link></>}
           </nav>
 
           <div className="flex flex-wrap items-center gap-3.5 max-[1024px]:hidden">

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getCollections } from '../../services/api'
+import { getCollections, getLibrary, getMyOrders } from '../../services/api'
 import type { LoveNoteCollection } from '../../types/loveNote'
 import { HOME_REFERENCE_MARKUP } from './homeReferenceMarkup'
+import { useAuth } from '../../auth/AuthContext'
+import { Link } from 'react-router-dom'
 
 function ContentPage({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
   return <main className="hs-page"><section className="hs-page-hero"><p>{eyebrow}</p><h1>{title}</h1></section><section className="hs-content">{children}</section></main>
@@ -70,7 +72,62 @@ function collectionMarkup(collections: HomeCollection[], loading: boolean, error
   </div>`
 }
 
+
+function LoggedInHome({ collections, loading, error }: { collections: HomeCollection[]; loading: boolean; error: string }) {
+  const [savedCount, setSavedCount] = useState(0)
+  const [orderCount, setOrderCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.allSettled([getLibrary(), getMyOrders()]).then(([library, orders]) => {
+      if (cancelled) return
+      if (library.status === 'fulfilled') setSavedCount(library.value.length)
+      if (orders.status === 'fulfilled') setOrderCount(orders.value.orders.length)
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  return <main className="flex-1 bg-[#f8f5ef] text-[#302b27]">
+    <section className="border-b border-[#ded8cf] bg-[radial-gradient(circle_at_80%_15%,rgba(255,255,255,.9),transparent_28%),linear-gradient(180deg,#fbf9f5,#f6f2ec)]">
+      <div className="mx-auto grid min-h-[600px] w-[min(1400px,calc(100%_-_112px))] grid-cols-[1fr_1.02fr] items-center gap-14 py-8 max-[900px]:w-[calc(100%_-_40px)] max-[900px]:grid-cols-1 max-[900px]:py-16">
+        <div className="max-w-[590px]">
+          <p className="mb-7 text-[13px] font-semibold uppercase tracking-[.19em] text-[#b28b3f]">Your Poetry Library</p>
+          <h1 className="m-0 font-serif text-[clamp(4.3rem,6.2vw,6.8rem)] font-medium leading-[.88] tracking-[-.045em]">Return to What<br/>Matters.<br/><em className="font-normal not-italic text-[#285247]">Beautifully.</em></h1>
+          <p className="mt-7 max-w-[480px] font-serif text-[22px] leading-[1.55] text-[#81766d]">A calm, curated dashboard for browsing meaningful poetry cards, revisiting saved pieces, and choosing what to share next.</p>
+          <Link to="/love-notes" className="mt-7 inline-flex min-h-14 items-center gap-6 rounded-[9px] bg-[#123e34] px-6 text-[15px] font-medium text-white shadow-[0_10px_22px_rgba(20,55,47,.16)]">Start Your Journey <span className="text-xl">›</span></Link>
+        </div>
+        <div className="relative min-h-[520px] max-[900px]:hidden" aria-hidden="true">
+          <div className="absolute left-[18%] top-[31%] h-[250px] w-[310px] rotate-[-8deg] rounded-[24px_24px_8px_8px] bg-[#173f35] shadow-[0_24px_44px_rgba(34,30,25,.16)]"/>
+          <div className="absolute left-[28%] top-[8%] h-[430px] w-[340px] rotate-[7deg] rounded-[9px] border border-[#e5ded4] bg-[#faf7f1] px-12 py-12 shadow-[0_25px_45px_rgba(35,28,22,.15)] before:absolute before:inset-0 before:bg-[repeating-linear-gradient(to_bottom,transparent_0_31px,rgba(80,68,55,.07)_31px_32px)] before:content-['']">
+            <p className="relative z-10 font-serif text-[29px] italic leading-[1.42] text-[#514941]">Some bonds<br/>don't need<br/>words.<br/>They live in<br/>the little<br/>things,<br/>in the way<br/>you<br/>understand,<br/>without<br/>needing to<br/>explain.</p>
+            <span className="absolute bottom-5 right-6 z-10 text-xs text-[#9a8879]">TM</span>
+          </div>
+          <div className="absolute bottom-[72px] right-[4%] h-[180px] w-[2px] rotate-[25deg] bg-[#82976f] before:absolute before:-left-4 before:top-9 before:h-4 before:w-8 before:rotate-[18deg] before:rounded-full before:bg-[#9aac8e] before:content-[''] after:absolute after:-left-5 after:top-[78px] after:h-4 after:w-8 after:rotate-[38deg] after:rounded-full after:bg-[#9aac8e] after:content-['']"/>
+        </div>
+      </div>
+    </section>
+
+    <section className="grid grid-cols-3 border-b border-[#ded8cf] bg-[#faf8f4] max-[700px]:grid-cols-1">
+      {[[savedCount,'Saved Cards','⌘'],[orderCount,'Orders','♡'],[0,'Requests Submitted','✎']].map(([value,label,icon],i)=><div key={String(label)} className={`flex min-h-[92px] items-center justify-center gap-5 ${i<2?'border-r border-[#ded8cf] max-[700px]:border-r-0 max-[700px]:border-b':''}`}><span className="grid h-11 w-11 place-items-center rounded-full bg-[#f1e9dc] text-xl text-[#31584e]">{icon}</span><div><strong className="block font-serif text-[25px] font-normal">{value}</strong><span className="text-[14px] text-[#756b62]">{label}</span></div></div>)}
+    </section>
+
+    <section className="mx-auto min-h-[530px] w-[min(1400px,calc(100%_-_112px))] py-12 max-[900px]:w-[calc(100%_-_40px)]">
+      {loading ? <p>Loading collections…</p> : error ? <p>{error}</p> : <>
+        <div className="mb-5 flex items-center justify-between"><div><h2 className="font-serif text-[31px]">{collections[0]?.name ?? 'Love'}</h2><p className="mt-1 text-[14px] text-[#786f66]">{collections[0]?.description}</p></div><Link to="/love-notes" className="grid h-12 w-12 place-items-center rounded-full bg-[#123e34] text-2xl text-white shadow-lg">›</Link></div>
+        <div className="flex gap-6 overflow-x-auto pb-3">
+          {collections.map(c=><Link key={c.id} to={`/love-notes/${encodeURIComponent(c.id)}`} className="shrink-0"><article className="relative flex h-[370px] w-[220px] flex-col justify-between overflow-hidden rounded-[9px] bg-[linear-gradient(135deg,#59383d,#8c5c60_55%,#aa7770)] p-5 text-[#fff9f2] shadow-sm"><span className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-[#f8f4ed] text-[#17392f]">♙</span><h3 className="max-w-[150px] font-serif text-[30px] leading-[.95]">{c.name}</h3><p className="font-serif text-[16px] leading-[1.25]">{c.description}</p></article></Link>)}
+        </div>
+      </>}
+    </section>
+
+    <section className="mx-auto mb-12 w-[min(1400px,calc(100%_-_112px))] rounded-[26px] bg-[radial-gradient(circle_at_8%_20%,#214c40,#103a31_48%,#17483d)] px-10 py-12 text-center text-white shadow-[0_16px_34px_rgba(23,57,47,.12)] max-[900px]:w-[calc(100%_-_40px)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-[#d9bd80]">Ready to Begin?</p><h2 className="mt-3 font-serif text-[42px]">Make It Yours. Share Beauty.</h2><p className="mx-auto mt-2 max-w-[760px] text-[14px] text-[#e0d8ce]">Continue browsing, personalize your message, and use one of your remaining cards when the moment feels right.</p>
+    </section>
+  </main>
+}
+
 export function HomePage() {
+  const { user } = useAuth()
   const [collections, setCollections] = useState<HomeCollection[]>([])
   const [collectionsLoading, setCollectionsLoading] = useState(true)
   const [collectionsError, setCollectionsError] = useState('')
@@ -150,6 +207,7 @@ export function HomePage() {
     collectionMarkup(collections, collectionsLoading, collectionsError),
   ), [collections, collectionsLoading, collectionsError])
 
+  if (user) return <LoggedInHome collections={collections} loading={collectionsLoading} error={collectionsError} />
   return <main className="flex-1 flex flex-col" dangerouslySetInnerHTML={{ __html: markup }} />
 }
 

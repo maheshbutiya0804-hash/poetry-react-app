@@ -774,6 +774,7 @@ async function hasActiveSubscription(userId: string) {
 app.get('/library', async (req, res) => {
   const auth = await getAuthenticatedUser(req)
   if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to access your Library.' })
   const saved = await prisma.savedCard.findMany({
     where: { userId: auth.id },
     orderBy: { createdAt: 'desc' },
@@ -815,6 +816,93 @@ app.patch('/library/:cardId/used', async (req, res) => {
     })
     res.json(saved)
   } catch { res.status(404).json({ message: 'Saved card not found.' }) }
+})
+
+
+
+const communityCreateSchema = z.object({
+  cardId: z.string().trim().min(1),
+  title: z.string().trim().min(2).max(255),
+  body: z.string().trim().min(10).max(10000),
+  anonymous: z.boolean().optional().default(false),
+})
+
+app.get('/community', async (req, res) => {
+  const search = String(req.query.search ?? '').trim()
+  const collectionId = String(req.query.collectionId ?? '').trim()
+  const where: any = { status: 'PUBLISHED' }
+  if (collectionId) where.collectionId = collectionId
+  if (search) where.OR = [
+    { title: { contains: search } },
+    { body: { contains: search } },
+    { authorName: { contains: search } },
+    { category: { contains: search } },
+  ]
+  const posts = await prisma.communityPost.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    include: {
+      card: { select: publicCardSelect },
+      collection: { select: { id: true, name: true, slug: true, description: true } },
+    },
+  })
+  res.json(posts.map(post => ({
+    id: post.id,
+    authorName: post.isAnonymous ? 'Anonymous' : post.authorName,
+    anonymous: post.isAnonymous,
+    title: post.title,
+    body: post.body,
+    category: post.category,
+    collectionId: post.collectionId,
+    collection: post.collection,
+    card: post.card ? cardDto(req, post.card) : null,
+    createdAt: post.createdAt,
+  })))
+})
+
+app.post('/community', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to share a story.' })
+  const parsed = communityCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Choose a saved card and enter your story title and details.' })
+
+  const saved = await prisma.savedCard.findUnique({
+    where: { userId_cardId: { userId: auth.id, cardId: parsed.data.cardId } },
+    include: { card: { include: { collection: true } } },
+  })
+  if (!saved || !saved.card.isPublished) return res.status(400).json({ message: 'Select one of your saved cards before publishing your story.' })
+
+  const post = await prisma.communityPost.create({
+    data: {
+      authorId: auth.id,
+      authorName: auth.fullName,
+      isAnonymous: parsed.data.anonymous,
+      collectionId: saved.card.collectionId,
+      cardId: saved.card.id,
+      category: saved.card.collection.name,
+      title: parsed.data.title,
+      body: parsed.data.body,
+      status: 'PUBLISHED',
+    },
+    include: {
+      card: { select: publicCardSelect },
+      collection: { select: { id: true, name: true, slug: true, description: true } },
+    },
+  })
+  res.status(201).json({
+    id: post.id,
+    authorName: post.isAnonymous ? 'Anonymous' : post.authorName,
+    anonymous: post.isAnonymous,
+    title: post.title,
+    body: post.body,
+    category: post.category,
+    collectionId: post.collectionId,
+    collection: post.collection,
+    card: post.card ? cardDto(req, post.card) : null,
+    createdAt: post.createdAt,
+  })
 })
 
 app.use('/admin', requireAdmin)

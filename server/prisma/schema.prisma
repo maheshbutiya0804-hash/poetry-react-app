@@ -14,6 +14,7 @@ model Collection {
   sortOrder   Int      @default(0)
   isActive    Boolean  @default(true)
   cards       Card[]
+  communityPosts CommunityPost[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -56,6 +57,7 @@ model Card {
   backLayout       Json?
   savedBy          SavedCard[]
   orders           CardOrder[]
+  communityPosts   CommunityPost[]
   widthInches      Float      @default(7)
   heightInches     Float      @default(5)
   orientation      String     @default("landscape") @db.VarChar(32)
@@ -321,21 +323,28 @@ model NotificationJob {
 }
 
 model CommunityPost {
-  id          String              @id @default(cuid()) @db.VarChar(191)
-  authorId    String?             @db.VarChar(191)
-  authorName  String              @db.VarChar(191)
-  category    String              @default("General") @db.VarChar(120)
-  title       String              @db.VarChar(255)
-  body        String              @db.Text
-  status      String              @default("PUBLISHED") @db.VarChar(32)
-  isReported  Boolean             @default(false)
-  reportCount Int                 @default(0)
-  responses   CommunityResponse[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id           String              @id @default(cuid()) @db.VarChar(191)
+  authorId     String?             @db.VarChar(191)
+  authorName   String              @db.VarChar(191)
+  isAnonymous  Boolean             @default(false)
+  collectionId String?             @db.VarChar(191)
+  collection   Collection?         @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  cardId       String?             @db.VarChar(191)
+  card         Card?               @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  category     String              @default("General") @db.VarChar(120)
+  title        String              @db.VarChar(255)
+  body         String              @db.Text
+  status       String              @default("PUBLISHED") @db.VarChar(32)
+  isReported   Boolean             @default(false)
+  reportCount  Int                 @default(0)
+  responses    CommunityResponse[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@index([status, createdAt])
   @@index([isReported, createdAt])
+  @@index([collectionId, createdAt])
+  @@index([cardId])
   @@map("communitypost")
 }
 
