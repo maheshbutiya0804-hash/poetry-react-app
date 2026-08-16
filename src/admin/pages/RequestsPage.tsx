@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { adminGetRequests, adminSetRequestStatus, getCollections, type AdminPoetryRequest, type AdminRequestsResponse, type LoveNoteCollection } from '../../services/api'
+import { adminGetRequests, adminSetRequestStatus, getCollections, type AdminPoetryRequest, type AdminRequestsResponse } from '../../services/api'
+import type { LoveNoteCollection } from '../../types/loveNote'
 
 const empty: AdminRequestsResponse = {
   summary: { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0 },

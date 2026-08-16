@@ -253,7 +253,7 @@ export type AdminUsersResponse = {
 
 export async function adminGetUsers(params: {search?: string; role?: string; status?: string; subscription?: string; page?:number; pageSize?:number} = {}): Promise<AdminUsersResponse> {
   const qs = new URLSearchParams()
-  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
+  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, String(value)) })
   const response = await apiFetch(`${API_BASE}/admin/users${qs.size ? `?${qs}` : ''}`)
   if (!response.ok) throw new Error('Unable to load users')
   return response.json()
@@ -321,7 +321,7 @@ export type AdminSubscriptionsResponse = {
 
 export async function adminGetSubscriptions(params: {search?: string; status?: string; page?:number; pageSize?:number; transactionPage?:number; transactionPageSize?:number} = {}): Promise<AdminSubscriptionsResponse> {
   const qs = new URLSearchParams()
-  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
+  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, String(value)) })
   const response = await apiFetch(`${API_BASE}/admin/subscriptions${qs.size ? `?${qs}` : ''}`)
   if (!response.ok) throw new Error('Unable to load subscriptions')
   return response.json()
@@ -407,7 +407,7 @@ export type AdminChallengesResponse = {
 
 export async function adminGetChallenges(params: {search?: string; status?: string; month?: string; year?: string; page?:number; pageSize?:number} = {}): Promise<AdminChallengesResponse> {
   const qs = new URLSearchParams()
-  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
+  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, String(value)) })
   const response = await apiFetch(`${API_BASE}/admin/challenges${qs.size ? `?${qs}` : ''}`)
   if (!response.ok) throw new Error('Unable to load challenges')
   return response.json()
@@ -460,7 +460,7 @@ export type AdminRequestsResponse = {
 
 export async function adminGetRequests(params: {search?: string; status?: string; category?: string; collection?: string; page?:number; pageSize?:number} = {}): Promise<AdminRequestsResponse> {
   const qs = new URLSearchParams()
-  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
+  Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, String(value)) })
   const response = await apiFetch(`${API_BASE}/admin/requests${qs.size ? `?${qs}` : ''}`)
   if (!response.ok) throw new Error('Unable to load requests')
   const body = await response.json()
@@ -587,7 +587,7 @@ export type AdminNotificationJob = {
 }
 
 export async function adminGetNotifications(params:{search?:string;status?:string;audience?:string;page?:number;pageSize?:number}={}):Promise<{jobs:AdminNotificationJob[];pagination:AdminPagination}> {
-  const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v)qs.set(k,v)})
+  const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v)qs.set(k,String(v))})
   const response=await apiFetch(`${API_BASE}/admin/notifications${qs.size?`?${qs}`:''}`)
   if(!response.ok) throw new Error('Unable to load notification jobs')
   return response.json()
@@ -631,7 +631,7 @@ export type UserOrder = {
 }
 export type UserOrdersResponse = { summary:{activeOrders:number; totalCardsOrdered:number; deliveredTotal:number}; orders:UserOrder[] }
 export async function getMyOrders(params:{search?:string;status?:string}={}):Promise<UserOrdersResponse>{
- const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v)qs.set(k,v)})
+ const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v)qs.set(k,String(v))})
  return authJson<UserOrdersResponse>(`/orders${qs.size?`?${qs}`:''}`)
 }
 export async function getMyOrder(orderId:string):Promise<UserOrder>{ return authJson<UserOrder>(`/orders/${orderId}`) }
