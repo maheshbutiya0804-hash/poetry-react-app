@@ -1437,7 +1437,7 @@ app.get('/admin/users', async (req, res) => {
   const subscription = String(req.query.subscription ?? '').trim()
   const { page, pageSize, skip } = paginationFromQuery(req)
   const where: any = {
-    ...(search ? { OR: [{ fullName: { contains: search } }, { email: { contains: search } }] } : {}),
+    ...(search ? { OR: [{ fullName: { contains: search } }, { email: { contains: search } }, { phone: { contains: search } }] } : {}),
     ...(role ? { role } : {}),
     ...(status ? { status } : {}),
     ...(subscription ? { subscription: subscription === 'NONE' ? { is: null } : { is: { status: subscription } } } : {}),
@@ -1807,6 +1807,20 @@ app.patch('/admin/orders/:orderId/reviewed', async (req, res) => {
   }
 })
 
+app.patch('/admin/orders/:orderId/delivery-date', async (req, res) => {
+  const parsed = z.object({ estimatedDeliveryDate: z.string().nullable() }).safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid estimated delivery date.' })
+  const raw = parsed.data.estimatedDeliveryDate?.trim() || null
+  const date = raw ? new Date(`${raw}T12:00:00.000Z`) : null
+  if (raw && Number.isNaN(date!.getTime())) return res.status(400).json({ message: 'Invalid estimated delivery date.' })
+  try {
+    const order = await prisma.cardOrder.update({ where: { id: req.params.orderId }, data: { estimatedDeliveryDate: date } })
+    res.json(orderDto(order))
+  } catch {
+    res.status(404).json({ message: 'Order not found' })
+  }
+})
+
 
 
 // Phase 7 – Notifications, Community, and Settings
@@ -1815,6 +1829,7 @@ const notificationSchema = z.object({
   audience: z.enum(['SINGLE_USER', 'SUBSCRIBERS_ONLY', 'ALL_USERS']),
   selectedUserId: z.string().optional().nullable(),
   recipientEmail: z.string().email().optional().nullable(),
+  recipientPhone: z.string().trim().max(50).optional().nullable(),
   subject: z.string().max(255).optional().nullable(),
   message: z.string().min(1).max(20000),
 })
@@ -1823,7 +1838,7 @@ app.get('/admin/notifications', async (req, res) => {
   const search=String(req.query.search??'').trim(),status=String(req.query.status??'').trim(),audience=String(req.query.audience??'').trim()
   const { page, pageSize, skip } = paginationFromQuery(req)
   const where:any={}; if(status)where.status=status;if(audience)where.audience=audience
-  if(search)where.OR=[{subject:{contains:search}},{message:{contains:search}},{recipientEmail:{contains:search}}]
+  if(search)where.OR=[{subject:{contains:search}},{message:{contains:search}},{recipientEmail:{contains:search}},{recipientPhone:{contains:search}}]
   const [jobs,total]=await Promise.all([
     prisma.notificationJob.findMany({where,orderBy:{createdAt:'desc'},skip,take:pageSize,include:{selectedUser:{select:{id:true,fullName:true,email:true,phone:true}}}}),
     prisma.notificationJob.count({where}),
@@ -1840,13 +1855,16 @@ app.post('/admin/notifications', async (req, res) => {
   let selectedUser: any = null
   let totalRecipients = 0
   let recipientEmail = data.recipientEmail?.trim() || null
+  let recipientPhone = data.recipientPhone?.trim() || null
   if (data.audience === 'SINGLE_USER') {
     if (data.selectedUserId) {
       selectedUser = await prisma.user.findUnique({ where: { id: data.selectedUserId } })
       if (!selectedUser) return res.status(400).json({ message: 'Selected user was not found.' })
       recipientEmail = recipientEmail || selectedUser.email
+      recipientPhone = recipientPhone || selectedUser.phone
     }
-    if (!selectedUser && !recipientEmail) return res.status(400).json({ message: 'Choose a user or enter a recipient email.' })
+    if (data.channel === 'EMAIL' && !selectedUser && !recipientEmail) return res.status(400).json({ message: 'Choose a user or enter a recipient email.' })
+    if (data.channel === 'SMS' && !recipientPhone) return res.status(400).json({ message: 'Choose a user with a phone number or enter a recipient phone.' })
     totalRecipients = 1
   } else if (data.audience === 'SUBSCRIBERS_ONLY') {
     totalRecipients = await prisma.subscription.count({ where: { status: 'ACTIVE', user: { status: 'ACTIVE' } } })
@@ -1861,6 +1879,7 @@ app.post('/admin/notifications', async (req, res) => {
       audience: data.audience,
       selectedUserId: selectedUser?.id ?? null,
       recipientEmail,
+      recipientPhone,
       subject: data.subject?.trim() || null,
       message: data.message,
       status: 'QUEUED',
@@ -2033,6 +2052,19 @@ app.post('/orders', async (req, res) => {
     },
   })
   res.status(201).json(orderDto(order))
+})
+
+
+app.patch('/orders/:orderId/feedback', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const parsed = z.object({ rating: z.coerce.number().int().min(1).max(5), feedback: z.string().trim().max(4000).optional().default('') }).safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Please provide a rating from 1 to 5.' })
+  const order = await prisma.cardOrder.findFirst({ where: { id: req.params.orderId, userId: auth.id } })
+  if (!order) return res.status(404).json({ message: 'Order not found.' })
+  if (order.status !== 'DELIVERED') return res.status(400).json({ message: 'Feedback can be submitted after delivery.' })
+  const updated = await prisma.cardOrder.update({ where: { id: order.id }, data: { feedbackRating: parsed.data.rating, feedbackText: parsed.data.feedback || null } })
+  res.json(orderDto(updated))
 })
 
 

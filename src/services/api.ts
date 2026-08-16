@@ -511,6 +511,15 @@ export type AdminCardOrder = {
   placedAt: string
   shippedAt?: string | null
   deliveredAt?: string | null
+  estimatedDeliveryDate?: string | null
+  feedbackRating?: number | null
+  feedbackText?: string | null
+  paymentStatus?: string
+  paymentReceipt?: string | null
+  paymentDate?: string | null
+  paymentMethod?: string | null
+  refundStatus?: string | null
+  stripePaymentId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -565,6 +574,15 @@ export async function adminSetOrderReviewed(orderId: string, reviewed: boolean):
   return body
 }
 
+export async function adminSetOrderDeliveryDate(orderId: string, estimatedDeliveryDate: string | null): Promise<AdminCardOrder> {
+  const response = await apiFetch(`${API_BASE}/admin/orders/${orderId}/delivery-date`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({estimatedDeliveryDate}),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to update estimated delivery date')
+  return body
+}
+
 export async function adminCreateDesignedCard(formData: FormData): Promise<LoveNoteCard> {
   const response = await apiFetch(`${API_BASE}/admin/cards/design`, { method: 'POST', body: formData })
   const body = await response.json().catch(() => ({}))
@@ -596,7 +614,7 @@ export async function adminGetNotifications(params:{search?:string;status?:strin
   return response.json()
 }
 
-export async function adminCreateNotification(input:{channel:'EMAIL'|'SMS';audience:'SINGLE_USER'|'SUBSCRIBERS_ONLY'|'ALL_USERS';selectedUserId?:string|null;recipientEmail?:string|null;subject?:string|null;message:string}):Promise<AdminNotificationJob>{
+export async function adminCreateNotification(input:{channel:'EMAIL'|'SMS';audience:'SINGLE_USER'|'SUBSCRIBERS_ONLY'|'ALL_USERS';selectedUserId?:string|null;recipientEmail?:string|null;recipientPhone?:string|null;subject?:string|null;message:string}):Promise<AdminNotificationJob>{
   const response=await apiFetch(`${API_BASE}/admin/notifications`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})
   const body=await response.json().catch(()=>({}))
   if(!response.ok) throw new Error(body.message??'Unable to create notification job')
@@ -618,6 +636,13 @@ export async function adminModeratePost(postId:string,input:{status?:'PUBLISHED'
   const response=await apiFetch(`${API_BASE}/admin/community/posts/${postId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})
   const body=await response.json().catch(()=>({}))
   if(!response.ok) throw new Error(body.message??'Unable to moderate post')
+  return body
+}
+
+export async function adminModerateResponse(responseId:string,input:{status?:'PUBLISHED'|'HIDDEN'|'REMOVED';clearReport?:boolean}){
+  const response=await apiFetch(`${API_BASE}/admin/community/responses/${responseId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})
+  const body=await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message??'Unable to moderate response')
   return body
 }
 

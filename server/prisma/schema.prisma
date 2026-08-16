@@ -298,6 +298,15 @@ model CardOrder {
   placedAt        DateTime  @default(now())
   shippedAt       DateTime?
   deliveredAt     DateTime?
+  estimatedDeliveryDate DateTime?
+  feedbackRating  Int?
+  feedbackText    String?   @db.Text
+  paymentStatus   String    @default("UNPAID") @db.VarChar(32)
+  paymentReceipt  String?   @db.VarChar(500)
+  paymentDate     DateTime?
+  paymentMethod   String?   @db.VarChar(80)
+  refundStatus    String?   @db.VarChar(80)
+  stripePaymentId String?   @db.VarChar(191)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -315,6 +324,7 @@ model NotificationJob {
   selectedUserId  String?   @db.VarChar(191)
   selectedUser    User?     @relation(fields: [selectedUserId], references: [id], onDelete: SetNull)
   recipientEmail  String?   @db.VarChar(191)
+  recipientPhone  String?   @db.VarChar(50)
   subject         String?   @db.VarChar(255)
   message         String    @db.Text
   status          String    @default("QUEUED") @db.VarChar(32)
