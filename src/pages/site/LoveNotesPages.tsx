@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { LoveNoteCard } from '../../components/love-notes/LoveNoteCard'
 import type { LoveNoteCard as LoveNoteCardType, LoveNoteCollection } from '../../types/loveNote'
-import { confirmSubscriptionCheckout, createSubscriptionCheckout, getCard, getCollectionCards, getCollections, getProfile, saveCardToLibrary } from '../../services/api'
+import { confirmSubscriptionCheckout, createSubscriptionCheckout, downloadPersonalizedCard, getCard, getCollectionCards, getCollections, getProfile, saveCardToLibrary } from '../../services/api'
 import { useAuth } from '../../auth/AuthContext'
 
 function LoadingBlock({ text = 'Loading…' }: { text?: string }) {
@@ -111,6 +111,9 @@ export function LoveNoteDetailPage() {
   const [collectionCards, setCollectionCards] = useState<LoveNoteCardType[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [recipientName, setRecipientName] = useState('')
+  const [senderName, setSenderName] = useState('')
+  const [personalizing, setPersonalizing] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -174,6 +177,14 @@ export function LoveNoteDetailPage() {
     finally{ setSaving(false) }
   }
 
+  async function downloadPersonalized() {
+    if (!recipientName.trim() || !senderName.trim()) { setCheckoutError('Enter both recipient and sender names first.'); return }
+    setPersonalizing(true); setCheckoutError('')
+    try { await downloadPersonalizedCard(cardId, recipientName.trim(), senderName.trim()) }
+    catch(error){ setCheckoutError(error instanceof Error?error.message:'Unable to create personalized PDF.') }
+    finally{ setPersonalizing(false) }
+  }
+
   function closeSuccess() {
     setSubscriptionModal(false)
     navigate(location.pathname,{replace:true})
@@ -187,15 +198,16 @@ export function LoveNoteDetailPage() {
       <div className="reference-back-row"><Link to={`/love-notes/${card.collectionId}`}>← <span>Back to Browse</span></Link></div>
       <section className="reference-card-detail">
         <div className="reference-preview-column">
-          <div className="protected-card-shell"><LoveNoteCard card={card} eager />{!hasAccess && <><div className="protected-fade" aria-hidden="true"/><div className="protected-message"><strong>PROTECTED PREVIEW</strong><p>Subscribe to unlock the original print-ready PDF.</p></div></>}</div>
-          <p className="reference-card-spec">5 × 7 inches · landscape · front only</p>
+          <div className="protected-card-shell personalized-card-preview"><LoveNoteCard card={card} eager />{!hasAccess && <><div className="protected-fade" aria-hidden="true"/><div className="protected-message"><strong>PROTECTED PREVIEW</strong><p>Subscribe to unlock the original print-ready PDF.</p></div></>}<div className="personalization-footer-preview"><span><small>For:</small>{recipientName.trim() || 'Recipient'}</span><span><small>With Love:</small>{senderName.trim() || 'Your Name'}</span></div></div>
+          <p className="reference-card-spec">5 × 7 inches · landscape · personalized footer preview</p>
         </div>
         <aside className="reference-card-info">
           <span className="reference-category-pill">○ Laurentine Love Note</span>
           <h1>{card.title}</h1>
           <p className="reference-card-description">{card.excerpt}</p>
+          <section className="personalization-panel" aria-labelledby="personalize-card-heading"><div className="personalization-panel-head"><div><span>PERSONALIZE YOUR CARD</span><h2 id="personalize-card-heading">Add the names that make it yours.</h2></div><em>Included</em></div><p>Names appear in a quiet footer so the poem and artwork stay untouched.</p><div className="personalization-fields"><label><span>RECIPIENT</span><input maxLength={120} value={recipientName} onChange={e=>setRecipientName(e.target.value)} placeholder="Brandi"/><small>Bottom left · “For: Brandi”</small></label><label><span>SENDER</span><input maxLength={120} value={senderName} onChange={e=>setSenderName(e.target.value)} placeholder="Shawn"/><small>Bottom right · “With Love: Shawn”</small></label></div><div className="personalization-note"><span>✦</span><p>Your original card design is never edited. We create a personalized copy only when you download or order.</p></div>{hasAccess&&<button className="personalization-download" type="button" onClick={downloadPersonalized} disabled={personalizing||!recipientName.trim()||!senderName.trim()}>{personalizing?'Creating personalized PDF…':'Download Personalized PDF'}</button>}</section>
           {hasAccess ? <button className="reference-subscribe-button" type="button" onClick={saveToLibrary} disabled={saving||saved}>{saved?'Saved to Library':saving?'Saving…':'Save to Library'}</button> : <button className="reference-subscribe-button" type="button" onClick={subscribe} disabled={checkoutLoading || authLoading}>{checkoutLoading ? 'Opening secure checkout…' : 'Subscribe for Full Access – $8.99/month'}</button>}
-          <Link className="reference-demo-download physical-order-button" to={`/cards/${card.id}/order`}>Order Physical Card – $7.99</Link>
+          <Link className="reference-demo-download physical-order-button" to={`/cards/${card.id}/order?for=${encodeURIComponent(recipientName.trim())}&from=${encodeURIComponent(senderName.trim())}`}>Order Physical Card – $7.99</Link>
           {checkoutError && <p className="auth-error" role="alert">{checkoutError}</p>}
           <p className="reference-save-note">{hasAccess ? 'Downloads are available from your Saved Library. Physical cards can be ordered anytime.' : 'The original PDF is available only with an active subscription.'}</p>
         </aside>

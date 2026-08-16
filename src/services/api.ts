@@ -459,6 +459,8 @@ export type AdminCardOrder = {
   status: 'PLACED' | 'QUOTED' | 'IN_PROGRESS' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
   reviewed: boolean
   shippingName?: string | null
+  personalizationRecipient?: string | null
+  personalizationSender?: string | null
   shippingAddress?: string | null
   shippingNote?: string | null
   trackingNumber?: string | null
@@ -580,7 +582,7 @@ export async function adminSaveSettings(input:{defaultPrintingFee:number;orderFe
 
 export type UserOrder = {
   id:string; orderNumber:string; cardId?:string|null; cardTitle:string; cardCategory?:string|null; quantity:number; cardPrice?:number; printingFee?:number; subtotal?:number|null; shippingFee:number|null; totalAmount:number|null; status:string;
-  shippingName?:string|null; shippingAddress?:string|null; shippingNote?:string|null; trackingNumber?:string|null; placedAt:string; shippedAt?:string|null; deliveredAt?:string|null;
+  shippingName?:string|null; personalizationRecipient?:string|null; personalizationSender?:string|null; shippingAddress?:string|null; shippingNote?:string|null; trackingNumber?:string|null; placedAt:string; shippedAt?:string|null; deliveredAt?:string|null;
   previewUrl?:string|null;
 }
 export type UserOrdersResponse = { summary:{activeOrders:number; totalCardsOrdered:number; deliveredTotal:number}; orders:UserOrder[] }
@@ -614,9 +616,17 @@ export async function removeCardFromLibrary(cardId:string):Promise<void>{ const 
 export async function setLibraryCardUsed(cardId:string,used:boolean):Promise<void>{ await authJson(`/library/${encodeURIComponent(cardId)}/used`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({used})}) }
 
 export type PhysicalOrderPricing={cardPrice:number;printingFee:number}
-export type PhysicalOrderInput={cardId:string;quantity:number;recipientName:string;address1:string;address2?:string;city:string;state:string;postalCode:string;country:string;shippingNote?:string}
+export type PhysicalOrderInput={cardId:string;quantity:number;personalizationRecipient:string;personalizationSender:string;recipientName:string;address1:string;address2?:string;city:string;state:string;postalCode:string;country:string;shippingNote?:string}
 export async function getPhysicalOrderPricing():Promise<PhysicalOrderPricing>{ return authJson('/orders/pricing') }
 export async function createPhysicalOrder(input:PhysicalOrderInput):Promise<UserOrder>{ return authJson('/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}) }
+
+export async function downloadPersonalizedCard(cardId:string,recipient:string,sender:string):Promise<void>{
+ const qs=new URLSearchParams({recipient,sender}); const r=await apiFetch(`${API_BASE}/cards/${encodeURIComponent(cardId)}/personalized-pdf?${qs}`); if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.message??'Unable to generate personalized PDF')} const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='laurentine-personalized-card.pdf'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+}
+
+export async function adminDownloadPersonalizedOrderPdf(orderId:string):Promise<void>{
+ const r=await apiFetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/personalized-pdf`); if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.message??'Unable to generate print PDF')} const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='laurentine-order-print.pdf'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+}
 
 export type BulkImportItem = {
   id: string

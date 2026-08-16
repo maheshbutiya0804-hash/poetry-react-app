@@ -8,7 +8,7 @@ import { createReadStream, existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { prisma } from "./lib/prisma.js";
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { z } from 'zod'
 import { createLoginSession, destroyLoginSession, getAuthenticatedUser, hashPassword, normalizeEmail, passwordPolicyError, requireAdmin, safeUser, verifyPassword } from './lib/auth.js'
 import { OAuth2Client } from 'google-auth-library'
@@ -2004,6 +2004,8 @@ app.put('/admin/settings', async (req, res) => {
 const physicalOrderSchema = z.object({
   cardId: z.string().min(1),
   quantity: z.coerce.number().int().min(1).max(25),
+  personalizationRecipient: z.string().trim().min(1).max(120),
+  personalizationSender: z.string().trim().min(1).max(120),
   recipientName: z.string().min(1).max(191),
   address1: z.string().min(1).max(255),
   address2: z.string().max(255).optional().default(''),
@@ -2062,11 +2064,83 @@ app.post('/orders', async (req, res) => {
       totalAmount: totalBeforeShipping,
       status: 'PLACED',
       shippingName: parsed.data.recipientName,
+      personalizationRecipient: parsed.data.personalizationRecipient,
+      personalizationSender: parsed.data.personalizationSender,
       shippingAddress: address,
       shippingNote: parsed.data.shippingNote || null,
     },
   })
   res.status(201).json(orderDto(order))
+})
+
+
+async function buildPersonalizedPdf(card: any, recipient: string, sender: string) {
+  if (!card?.pdfPath) throw new Error('Original PDF is not available for this card.')
+  const sourcePath = path.resolve(storageRoot, card.pdfPath)
+  const allowedRoot = path.resolve(cardsRoot) + path.sep
+  if (!sourcePath.startsWith(allowedRoot) || !existsSync(sourcePath)) throw new Error('Original PDF file is missing from storage.')
+  const sourceBytes = await fs.readFile(sourcePath)
+  const pdfDoc = await PDFDocument.load(sourceBytes)
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const page = pdfDoc.getPages()[0]
+  const { width, height } = page.getSize()
+  const marginX = Math.max(18, width * 0.035)
+  const footerY = Math.max(14, height * 0.035)
+  const labelSize = Math.max(7.5, Math.min(10, width / 58))
+  const valueSize = Math.max(8.5, Math.min(11.5, width / 52))
+  const ink = rgb(0.22, 0.20, 0.18)
+  const muted = rgb(0.42, 0.39, 0.35)
+  const leftLabel = 'For:'
+  const rightLabel = 'With Love:'
+  const footerHeight = Math.max(26, height * 0.075)
+  page.drawRectangle({ x: 0, y: 0, width, height: footerHeight, color: rgb(0.99, 0.98, 0.96), opacity: 0.88 })
+  page.drawLine({ start: { x: marginX, y: footerHeight - 1 }, end: { x: width - marginX, y: footerHeight - 1 }, thickness: 0.5, color: rgb(0.72, 0.68, 0.63), opacity: 0.45 })
+  page.drawText(leftLabel, { x: marginX, y: footerY + 1, size: labelSize, font: bold, color: muted })
+  page.drawText(recipient, { x: marginX + bold.widthOfTextAtSize(leftLabel, labelSize) + 5, y: footerY, size: valueSize, font, color: ink })
+  const senderText = `${rightLabel} ${sender}`
+  const senderWidth = bold.widthOfTextAtSize(rightLabel, labelSize) + 5 + font.widthOfTextAtSize(sender, valueSize)
+  page.drawText(rightLabel, { x: Math.max(marginX, width - marginX - senderWidth), y: footerY + 1, size: labelSize, font: bold, color: muted })
+  page.drawText(sender, { x: Math.max(marginX, width - marginX - font.widthOfTextAtSize(sender, valueSize)), y: footerY, size: valueSize, font, color: ink })
+  return pdfDoc.save()
+}
+
+app.get('/cards/:cardId/personalized-pdf', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  const subscription = await prisma.subscription.findUnique({ where: { userId: auth.id } })
+  const active = subscription?.status === 'ACTIVE' && (!subscription.currentPeriodEnd || subscription.currentPeriodEnd > new Date())
+  if (!active) return res.status(403).json({ message: 'An active subscription is required to download a personalized PDF.' })
+  const parsed = z.object({ recipient: z.string().trim().min(1).max(120), sender: z.string().trim().min(1).max(120) }).safeParse(req.query)
+  if (!parsed.success) return res.status(400).json({ message: 'Recipient and sender names are required.' })
+  const card = await prisma.card.findFirst({ where: { id: req.params.cardId, isPublished: true } })
+  if (!card) return res.status(404).json({ message: 'Card not found.' })
+  try {
+    const bytes = await buildPersonalizedPdf(card, parsed.data.recipient, parsed.data.sender)
+    const safeName = `${card.slug || 'laurentine-card'}-personalized.pdf`.replace(/[^a-zA-Z0-9._-]+/g, '-')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`)
+    res.send(Buffer.from(bytes))
+  } catch (error) {
+    console.error('PERSONALIZED PDF ERROR', error)
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Unable to generate personalized PDF.' })
+  }
+})
+
+app.get('/admin/orders/:orderId/personalized-pdf', async (req, res) => {
+  const order = await prisma.cardOrder.findUnique({ where: { id: req.params.orderId }, include: { card: true } })
+  if (!order) return res.status(404).json({ message: 'Order not found.' })
+  if (!order.card || !order.personalizationRecipient || !order.personalizationSender) return res.status(400).json({ message: 'This order does not have complete personalization details.' })
+  try {
+    const bytes = await buildPersonalizedPdf(order.card, order.personalizationRecipient, order.personalizationSender)
+    const safeName = `${order.orderNumber}-${order.card.slug || 'card'}-print.pdf`.replace(/[^a-zA-Z0-9._-]+/g, '-')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`)
+    res.send(Buffer.from(bytes))
+  } catch (error) {
+    console.error('ORDER PERSONALIZED PDF ERROR', error)
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Unable to generate print PDF.' })
+  }
 })
 
 const port = Number(process.env.PORT ?? 4000)

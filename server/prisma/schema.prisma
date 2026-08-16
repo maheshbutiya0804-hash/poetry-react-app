@@ -283,6 +283,8 @@ model CardOrder {
   status          String    @default("PLACED") @db.VarChar(32)
   reviewed        Boolean   @default(false)
   shippingName    String?   @db.VarChar(191)
+  personalizationRecipient String? @db.VarChar(120)
+  personalizationSender    String? @db.VarChar(120)
   shippingAddress String?   @db.Text
   shippingNote    String?   @db.Text
   trackingNumber  String?   @db.VarChar(191)
