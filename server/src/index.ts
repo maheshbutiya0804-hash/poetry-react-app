@@ -1160,13 +1160,13 @@ app.get('/admin/cards', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const collectionId = String(req.query.collectionId ?? '').trim()
-  const featured = String(req.query.featured ?? '').trim()
+  const featuredFilter = String(req.query.featured ?? '').trim()
   const where: any = {}
   if (search) where.OR = [{ title: { contains: search } }, { description: { contains: search } }]
   if (status === 'published') where.isPublished = true
   if (status === 'draft') where.isPublished = false
   if (collectionId) where.collectionId = collectionId
-  if (featured === 'true') where.isFeatured = true
+  if (featuredFilter === 'true') where.isFeatured = true
   const [cards, filteredTotal, total, drafts, published, featured] = await Promise.all([
     prisma.card.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, select: publicCardSelect }),
     prisma.card.count({ where }),
