@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AdminHero, Panel } from '../components/AdminLayout'
+import { AdminHero, AdminPagination, Panel } from '../components/AdminLayout'
 import { adminCreateNotification, adminGetNotifications, adminGetUsers, type AdminNotificationJob, type AdminUser } from '../../services/api'
 
 const fmt=(v:string)=>new Intl.DateTimeFormat('en-US',{month:'short',day:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(v))
@@ -9,12 +9,13 @@ export function NotificationsPage(){
  const [audience,setAudience]=useState<'SINGLE_USER'|'SUBSCRIBERS_ONLY'|'ALL_USERS'>('SINGLE_USER')
  const [subject,setSubject]=useState(''),[recipientEmail,setRecipientEmail]=useState(''),[message,setMessage]=useState('')
  const [userSearch,setUserSearch]=useState(''),[users,setUsers]=useState<AdminUser[]>([]),[selected,setSelected]=useState<AdminUser|null>(null)
- const [jobs,setJobs]=useState<AdminNotificationJob[]>([]),[jobSearch,setJobSearch]=useState(''),[jobStatus,setJobStatus]=useState(''),[jobAudience,setJobAudience]=useState('')
+ const [jobs,setJobs]=useState<AdminNotificationJob[]>([]),[jobPagination,setJobPagination]=useState({page:1,pageSize:20,total:0,totalPages:1}),[jobPage,setJobPage]=useState(1),[jobSearch,setJobSearch]=useState(''),[jobStatus,setJobStatus]=useState(''),[jobAudience,setJobAudience]=useState('')
  const [error,setError]=useState(''),[sending,setSending]=useState(false)
 
- async function loadJobs(){try{setJobs((await adminGetNotifications({search:jobSearch,status:jobStatus,audience:jobAudience})).jobs)}catch(e){setError(e instanceof Error?e.message:'Unable to load jobs')}}
- useEffect(()=>{const t=setTimeout(loadJobs,160);return()=>clearTimeout(t)},[jobSearch,jobStatus,jobAudience])
- useEffect(()=>{const t=setTimeout(async()=>{try{setUsers((await adminGetUsers({search:userSearch})).users.slice(0,8))}catch{}},160);return()=>clearTimeout(t)},[userSearch])
+ async function loadJobs(){try{const result=await adminGetNotifications({search:jobSearch,status:jobStatus,audience:jobAudience,page:jobPage,pageSize:20});setJobs(result.jobs);setJobPagination(result.pagination)}catch(e){setError(e instanceof Error?e.message:'Unable to load jobs')}}
+ useEffect(()=>{const t=setTimeout(loadJobs,160);return()=>clearTimeout(t)},[jobSearch,jobStatus,jobAudience,jobPage])
+ useEffect(()=>setJobPage(1),[jobSearch,jobStatus,jobAudience])
+ useEffect(()=>{const t=setTimeout(async()=>{try{setUsers((await adminGetUsers({search:userSearch,page:1,pageSize:8})).users)}catch{}},160);return()=>clearTimeout(t)},[userSearch])
 
  const summary=useMemo(()=>({channel,audience,selected:selected?.fullName??'Not selected',length:message.length}),[channel,audience,selected,message])
  async function send(){setError('');setSending(true);try{await adminCreateNotification({channel,audience,selectedUserId:selected?.id??null,recipientEmail:recipientEmail||null,subject:channel==='EMAIL'?subject:null,message});setSubject('');setRecipientEmail('');setMessage('');setSelected(null);await loadJobs()}catch(e){setError(e instanceof Error?e.message:'Unable to create notification')}finally{setSending(false)}}
@@ -43,7 +44,7 @@ export function NotificationsPage(){
    </div>
   </div>
   <Panel><span className="hs-eyebrow">HISTORY</span><h2>Notification Jobs</h2><p>Review queued and saved notification jobs with quick filters for follow-up.</p><div className="hs-filter hs-notify-history"><label className="hs-search">⌕ <input value={jobSearch} onChange={e=>setJobSearch(e.target.value)} placeholder="Search by subject"/></label><select value={jobStatus} onChange={e=>setJobStatus(e.target.value)}><option value="">Job Status</option><option>QUEUED</option><option>SENDING</option><option>SENT</option><option>FAILED</option><option>CANCELLED</option></select><select value={jobAudience} onChange={e=>setJobAudience(e.target.value)}><option value="">Job Audience</option><option value="SINGLE_USER">Single User</option><option value="SUBSCRIBERS_ONLY">Subscribers Only</option><option value="ALL_USERS">All Users</option></select><button className="hs-outline" onClick={loadJobs}>↻ Refresh</button></div>
-   {jobs.length===0?<div className="hs-empty"><h2>No notification jobs found</h2><p>Send a notification or adjust the filters to see job history.</p></div>:<div className="hs-job-table"><div className="hs-job-row head"><span>SUBJECT / MESSAGE</span><span>CHANNEL</span><span>AUDIENCE</span><span>RECIPIENTS</span><span>STATUS</span><span>CREATED</span></div>{jobs.map(j=><div className="hs-job-row" key={j.id}><span><b>{j.subject||j.message.slice(0,50)}</b><small>{j.selectedUser?.fullName||j.recipientEmail||'Segment delivery'}</small></span><span>{j.channel}</span><span>{j.audience.replaceAll('_',' ')}</span><span>{j.totalRecipients}</span><span><em className={`hs-pill ${j.status==='SENT'?'green':''}`}>{j.status}</em></span><span>{fmt(j.createdAt)}</span></div>)}</div>}
+   {jobs.length===0?<div className="hs-empty"><h2>No notification jobs found</h2><p>Send a notification or adjust the filters to see job history.</p></div>:<div className="hs-job-table"><div className="hs-job-row head"><span>SUBJECT / MESSAGE</span><span>CHANNEL</span><span>AUDIENCE</span><span>RECIPIENTS</span><span>STATUS</span><span>CREATED</span></div>{jobs.map(j=><div className="hs-job-row" key={j.id}><span><b>{j.subject||j.message.slice(0,50)}</b><small>{j.selectedUser?.fullName||j.recipientEmail||'Segment delivery'}</small></span><span>{j.channel}</span><span>{j.audience.replaceAll('_',' ')}</span><span>{j.totalRecipients}</span><span><em className={`hs-pill ${j.status==='SENT'?'green':''}`}>{j.status}</em></span><span>{fmt(j.createdAt)}</span></div>)}</div>}<AdminPagination {...jobPagination} onPageChange={setJobPage}/>
   </Panel>
  </>
 }

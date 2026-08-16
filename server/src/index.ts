@@ -61,6 +61,48 @@ app.use(cors({
 }))
 
 
+function paginationFromQuery(req: express.Request, defaultPageSize = 20) {
+  const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1)
+  const pageSize = Math.min(100, Math.max(5, Number.parseInt(String(req.query.pageSize ?? defaultPageSize), 10) || defaultPageSize))
+  return { page, pageSize, skip: (page - 1) * pageSize }
+}
+
+function paginationMeta(page: number, pageSize: number, total: number) {
+  return { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
+}
+
+function stripeDashboardUrl(id: string | null | undefined) {
+  if (!id) return null
+  const testMode = process.env.STRIPE_SECRET_KEY?.trim().startsWith('sk_test_')
+  const root = `https://dashboard.stripe.com/${testMode ? 'test/' : ''}`
+  if (id.startsWith('in_')) return `${root}invoices/${id}`
+  if (id.startsWith('pi_') || id.startsWith('ch_') || id.startsWith('py_')) return `${root}payments/${id}`
+  if (id.startsWith('sub_')) return `${root}subscriptions/${id}`
+  if (id.startsWith('cus_')) return `${root}customers/${id}`
+  return `${root}search?query=${encodeURIComponent(id)}`
+}
+
+async function upsertSuccessfulStripeInvoice(userId: string, invoice: any) {
+  if (!invoice?.id) return null
+  return prisma.paymentTransaction.upsert({
+    where: { providerTransactionId: String(invoice.id) },
+    create: {
+      userId,
+      providerTransactionId: String(invoice.id),
+      description: 'Laurentine monthly subscription',
+      amount: Number(invoice.amount_paid ?? invoice.amount_due ?? 0) / 100,
+      currency: String(invoice.currency ?? 'usd').toUpperCase(),
+      status: 'SUCCESS',
+      occurredAt: invoice.status_transitions?.paid_at ? new Date(Number(invoice.status_transitions.paid_at) * 1000) : new Date(),
+    },
+    update: {
+      status: 'SUCCESS',
+      amount: Number(invoice.amount_paid ?? invoice.amount_due ?? 0) / 100,
+      occurredAt: invoice.status_transitions?.paid_at ? new Date(Number(invoice.status_transitions.paid_at) * 1000) : undefined,
+    },
+  })
+}
+
 function stripeClient() {
   const key = process.env.STRIPE_SECRET_KEY?.trim()
   if (!key) throw new Error('STRIPE_SECRET_KEY is not configured.')
@@ -140,8 +182,11 @@ app.post('/billing/stripe-webhook', express.raw({ type: 'application/json' }), a
       const userId = object?.metadata?.userId || object?.client_reference_id
       const subscriptionId = typeof object?.subscription === 'string' ? object.subscription : object?.subscription?.id
       if (userId && subscriptionId) {
-        const subscription: any = await stripeClient().subscriptions.retrieve(subscriptionId)
+        const subscription: any = await stripeClient().subscriptions.retrieve(subscriptionId, { expand: ['latest_invoice'] })
         await syncStripeSubscription(String(userId), subscription, object.payment_status === 'paid' ? 'PAID' : undefined)
+        if (object.payment_status === 'paid' && subscription?.latest_invoice && typeof subscription.latest_invoice !== 'string') {
+          await upsertSuccessfulStripeInvoice(String(userId), subscription.latest_invoice)
+        }
       }
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.created') {
       const subscription: any = object
@@ -159,19 +204,7 @@ app.post('/billing/stripe-webhook', express.raw({ type: 'application/json' }), a
           const subscription: any = await stripeClient().subscriptions.retrieve(sid)
           await syncStripeSubscription(userId, subscription, 'PAID')
         }
-        await prisma.paymentTransaction.upsert({
-          where: { providerTransactionId: String(invoice.id) },
-          create: {
-            userId,
-            providerTransactionId: String(invoice.id),
-            description: 'Laurentine monthly subscription',
-            amount: Number(invoice.amount_paid ?? 0) / 100,
-            currency: String(invoice.currency ?? 'usd').toUpperCase(),
-            status: 'SUCCESS',
-            occurredAt: invoice.status_transitions?.paid_at ? new Date(Number(invoice.status_transitions.paid_at) * 1000) : new Date(),
-          },
-          update: { status: 'SUCCESS', amount: Number(invoice.amount_paid ?? 0) / 100 },
-        })
+await upsertSuccessfulStripeInvoice(userId, invoice)
       }
     } else if (event.type === 'invoice.payment_failed') {
       const invoice: any = object
@@ -304,12 +337,15 @@ app.get('/billing/confirm-subscription', async (req, res) => {
   const sessionId = String(req.query.session_id ?? '').trim()
   if (!sessionId) return res.status(400).json({ message: 'Missing checkout session.' })
   try {
-    const session: any = await stripeClient().checkout.sessions.retrieve(sessionId, { expand: ['subscription'] })
+    const session: any = await stripeClient().checkout.sessions.retrieve(sessionId, { expand: ['subscription', 'subscription.latest_invoice'] })
     const sessionUserId = session?.metadata?.userId || session?.client_reference_id
     if (sessionUserId !== auth.id) return res.status(403).json({ message: 'This checkout belongs to another account.' })
     const subscription: any = typeof session.subscription === 'string' ? await stripeClient().subscriptions.retrieve(session.subscription) : session.subscription
     if (!subscription) return res.status(409).json({ active: false, message: 'Stripe has not attached the subscription yet.' })
     const dbSub = await syncStripeSubscription(auth.id, subscription, session.payment_status === 'paid' ? 'PAID' : undefined)
+    if (session.payment_status === 'paid' && subscription?.latest_invoice && typeof subscription.latest_invoice !== 'string') {
+      await upsertSuccessfulStripeInvoice(auth.id, subscription.latest_invoice)
+    }
     res.json({ active: dbSub.status === 'ACTIVE', subscription: { status: dbSub.status, currentPeriodEnd: dbSub.currentPeriodEnd, monthlyPrice: Number(dbSub.monthlyPrice) } })
   } catch (error: any) {
     console.error('Stripe subscription confirmation failed:', error)
@@ -1095,14 +1131,37 @@ app.post('/admin/cards/bulk-import', bulkZipUpload.single('zip'), async (req, re
 })
 
 app.get('/admin/cards/bulk-import/:jobId', async (req, res) => {
-  const job = await prisma.cardImportJob.findUnique({ where: { id: req.params.jobId }, include: { items: { orderBy: { createdAt: 'asc' }, take: 500 } } })
+  const { page, pageSize, skip } = paginationFromQuery(req, 25)
+  const job = await prisma.cardImportJob.findUnique({ where: { id: req.params.jobId } })
   if (!job) return res.status(404).json({ message: 'Import job not found.' })
-  res.json(job)
+  const [items,total] = await Promise.all([
+    prisma.cardImportItem.findMany({ where:{jobId:job.id}, orderBy:{createdAt:'asc'}, skip, take:pageSize }),
+    prisma.cardImportItem.count({ where:{jobId:job.id} }),
+  ])
+  res.json({ ...job, items, pagination: paginationMeta(page,pageSize,total) })
 })
 
 app.get('/admin/cards', async (req, res) => {
-  const cards = await prisma.card.findMany({ orderBy: { createdAt: 'desc' }, select: publicCardSelect })
-  res.json(cards.map(card => cardDto(req, card)))
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const search = String(req.query.search ?? '').trim()
+  const status = String(req.query.status ?? '').trim()
+  const where: any = {}
+  if (search) where.OR = [{ title: { contains: search } }, { description: { contains: search } }]
+  if (status === 'published') where.isPublished = true
+  if (status === 'draft') where.isPublished = false
+  const [cards, filteredTotal, total, drafts, published, featured] = await Promise.all([
+    prisma.card.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, select: publicCardSelect }),
+    prisma.card.count({ where }),
+    prisma.card.count(),
+    prisma.card.count({ where: { isPublished: false } }),
+    prisma.card.count({ where: { isPublished: true } }),
+    prisma.card.count({ where: { isFeatured: true } }),
+  ])
+  res.json({
+    summary: { total, drafts, published, featured },
+    cards: cards.map(card => cardDto(req, card)),
+    pagination: paginationMeta(page, pageSize, filteredTotal),
+  })
 })
 
 app.get('/admin/cards/:cardId', async (req, res) => {
@@ -1358,47 +1417,26 @@ app.get('/admin/users', async (req, res) => {
   const role = String(req.query.role ?? '').trim()
   const status = String(req.query.status ?? '').trim()
   const subscription = String(req.query.subscription ?? '').trim()
-
-  const users = await prisma.user.findMany({
-    where: {
-      ...(search ? { OR: [
-        { fullName: { contains: search } },
-        { email: { contains: search } },
-      ] } : {}),
-      ...(role ? { role } : {}),
-      ...(status ? { status } : {}),
-      ...(subscription ? {
-        subscription: subscription === 'NONE'
-          ? { is: null }
-          : { is: { status: subscription } },
-      } : {}),
-    },
-    orderBy: { joinedAt: 'desc' },
-    include: { subscription: true },
-  })
-
-  const [totalUsers, activeSubscribers, blockedUsers] = await Promise.all([
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const where: any = {
+    ...(search ? { OR: [{ fullName: { contains: search } }, { email: { contains: search } }] } : {}),
+    ...(role ? { role } : {}),
+    ...(status ? { status } : {}),
+    ...(subscription ? { subscription: subscription === 'NONE' ? { is: null } : { is: { status: subscription } } } : {}),
+  }
+  const [users, filteredTotal, totalUsers, activeSubscribers, blockedUsers] = await Promise.all([
+    prisma.user.findMany({ where, orderBy: { joinedAt: 'desc' }, skip, take: pageSize, include: { subscription: true } }),
+    prisma.user.count({ where }),
     prisma.user.count(),
     prisma.subscription.count({ where: { status: 'ACTIVE' } }),
     prisma.user.count({ where: { status: 'BLOCKED' } }),
   ])
-
   res.json({
-    summary: {
-      totalUsers,
-      activeSubscribers,
-      freeUsers: Math.max(totalUsers - activeSubscribers, 0),
-      blockedUsers,
-    },
+    summary: { totalUsers, activeSubscribers, freeUsers: Math.max(totalUsers - activeSubscribers, 0), blockedUsers },
+    pagination: paginationMeta(page, pageSize, filteredTotal),
     users: users.map(user => ({
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      status: user.status,
-      joinedAt: user.joinedAt,
-      subscriptionStatus: user.subscription?.status ?? 'NONE',
+      id: user.id, fullName: user.fullName, email: user.email, phone: user.phone, role: user.role,
+      status: user.status, joinedAt: user.joinedAt, subscriptionStatus: user.subscription?.status ?? 'NONE',
       paymentStatus: user.subscription?.paymentStatus ?? 'NONE',
     })),
   })
@@ -1431,86 +1469,50 @@ app.patch('/admin/users/:userId/status', async (req, res) => {
 app.get('/admin/subscriptions', async (req, res) => {
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
-
-  const subscriptions = await prisma.subscription.findMany({
-    where: {
-      ...(status ? { status } : {}),
-      ...(search ? { user: { OR: [
-        { fullName: { contains: search } },
-        { email: { contains: search } },
-      ] } } : {}),
-    },
-    orderBy: { updatedAt: 'desc' },
-    include: { user: true },
-  })
-
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-
-  const [totalSubscribers, activeSubscriptions, successfulThisMonth, transactions, failedPayments] = await Promise.all([
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const transactionPage = Math.max(1, Number.parseInt(String(req.query.transactionPage ?? '1'), 10) || 1)
+  const transactionPageSize = Math.min(100, Math.max(5, Number.parseInt(String(req.query.transactionPageSize ?? '10'), 10) || 10))
+  const transactionSkip = (transactionPage - 1) * transactionPageSize
+  const where: any = {
+    ...(status ? { status } : {}),
+    ...(search ? { user: { OR: [{ fullName: { contains: search } }, { email: { contains: search } }] } } : {}),
+  }
+  const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0)
+  const [subscriptions, filteredTotal, totalSubscribers, activeSubscriptions, successfulThisMonth, transactions, transactionTotal, failedPayments] = await Promise.all([
+    prisma.subscription.findMany({
+      where, orderBy: { updatedAt: 'desc' }, skip, take: pageSize,
+      include: { user: { include: { payments: { orderBy: { occurredAt: 'desc' }, take: 1 } } } },
+    }),
+    prisma.subscription.count({ where }),
     prisma.subscription.count(),
     prisma.subscription.count({ where: { status: 'ACTIVE' } }),
-    prisma.paymentTransaction.aggregate({
-      where: { status: 'SUCCESS', occurredAt: { gte: startOfMonth } },
-      _sum: { amount: true },
-    }),
-    prisma.paymentTransaction.findMany({
-      orderBy: { occurredAt: 'desc' },
-      take: 10,
-      include: { user: true },
-    }),
-    prisma.paymentTransaction.findMany({
-      where: { status: 'FAILED' },
-      orderBy: { occurredAt: 'desc' },
-      take: 10,
-      include: { user: true },
-    }),
+    prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', occurredAt: { gte: startOfMonth } }, _sum: { amount: true } }),
+    prisma.paymentTransaction.findMany({ orderBy: { occurredAt: 'desc' }, skip: transactionSkip, take: transactionPageSize, include: { user: true } }),
+    prisma.paymentTransaction.count(),
+    prisma.paymentTransaction.findMany({ where: { status: 'FAILED' }, orderBy: { occurredAt: 'desc' }, take: 10, include: { user: true } }),
   ])
-
   const monthlyPrice = subscriptions[0]?.monthlyPrice ?? 8.99
-
   res.json({
-    summary: {
-      totalSubscribers,
-      monthlyRevenue: Number(successfulThisMonth._sum.amount ?? 0),
-      activeSubscriptions,
-      monthlyPrice: Number(monthlyPrice),
-    },
-    subscribers: subscriptions.map(sub => ({
-      id: sub.id,
-      userId: sub.userId,
-      fullName: sub.user.fullName,
-      email: sub.user.email,
-      planName: sub.planName,
-      status: sub.status,
-      paymentStatus: sub.paymentStatus,
-      monthlyPrice: Number(sub.monthlyPrice),
-      startedAt: sub.startedAt,
-      currentPeriodEnd: sub.currentPeriodEnd,
-      createdAt: sub.createdAt,
-    })),
+    summary: { totalSubscribers, monthlyRevenue: Number(successfulThisMonth._sum.amount ?? 0), activeSubscriptions, monthlyPrice: Number(monthlyPrice) },
+    pagination: paginationMeta(page, pageSize, filteredTotal),
+    transactionPagination: paginationMeta(transactionPage, transactionPageSize, transactionTotal),
+    subscribers: subscriptions.map(sub => {
+      const latest = sub.user.payments[0]
+      const detailId = latest?.providerTransactionId || sub.stripeSubscriptionId || sub.stripeCustomerId
+      return {
+        id: sub.id, userId: sub.userId, fullName: sub.user.fullName, email: sub.user.email, planName: sub.planName,
+        status: sub.status, paymentStatus: sub.paymentStatus, monthlyPrice: Number(sub.monthlyPrice), startedAt: sub.startedAt,
+        currentPeriodEnd: sub.currentPeriodEnd, createdAt: sub.createdAt, stripeDashboardUrl: stripeDashboardUrl(detailId),
+      }
+    }),
     transactions: transactions.map(tx => ({
-      id: tx.id,
-      providerTransactionId: tx.providerTransactionId ?? tx.id,
-      fullName: tx.user.fullName,
-      date: tx.occurredAt,
-      amount: Number(tx.amount),
-      status: tx.status,
-      description: tx.description,
+      id: tx.id, providerTransactionId: tx.providerTransactionId ?? tx.id, fullName: tx.user.fullName, date: tx.occurredAt,
+      amount: Number(tx.amount), status: tx.status, description: tx.description,
+      stripeDashboardUrl: stripeDashboardUrl(tx.providerTransactionId ?? tx.id),
     })),
-    failedPayments: failedPayments.map(tx => ({
-      id: tx.id,
-      fullName: tx.user.fullName,
-      email: tx.user.email,
-      date: tx.occurredAt,
-      amount: Number(tx.amount),
-      status: tx.status,
-    })),
+    failedPayments: failedPayments.map(tx => ({ id: tx.id, fullName: tx.user.fullName, email: tx.user.email, date: tx.occurredAt, amount: Number(tx.amount), status: tx.status })),
   })
 })
-
-
 
 app.get('/admin/users/:userId', async (req, res) => {
   const user = await prisma.user.findUnique({
@@ -1588,27 +1590,20 @@ app.get('/admin/challenges', async (req, res) => {
   const status = String(req.query.status ?? '').trim()
   const month = String(req.query.month ?? '').trim()
   const year = Number(req.query.year ?? 0)
+  const { page, pageSize, skip } = paginationFromQuery(req)
   const where: any = {}
   if (search) where.title = { contains: search }
   if (status) where.status = status
   if (month || year) {
-    const y = year || new Date().getFullYear()
-    const m = month ? Number(month) - 1 : 0
-    const start = new Date(Date.UTC(y, m, 1))
-    const end = month ? new Date(Date.UTC(y, m + 1, 1)) : new Date(Date.UTC(y + 1, 0, 1))
+    const y = year || new Date().getFullYear(); const m = month ? Number(month) - 1 : 0
+    const start = new Date(Date.UTC(y,m,1)); const end = month ? new Date(Date.UTC(y,m+1,1)) : new Date(Date.UTC(y+1,0,1))
     where.challengeMonth = { gte: start, lt: end }
   }
-  const challenges = await prisma.challenge.findMany({
-    where,
-    orderBy: [{ challengeMonth: 'desc' }, { createdAt: 'desc' }],
-    include: { reminders: { orderBy: { dayOfMonth: 'asc' } } },
-  })
-  const [total, drafts, published] = await Promise.all([
-    prisma.challenge.count(),
-    prisma.challenge.count({ where: { status: 'DRAFT' } }),
-    prisma.challenge.count({ where: { status: 'PUBLISHED' } }),
+  const [challenges, filteredTotal, total, drafts, published] = await Promise.all([
+    prisma.challenge.findMany({ where, orderBy: [{ challengeMonth: 'desc' }, { createdAt: 'desc' }], skip, take: pageSize, include: { reminders: { orderBy: { dayOfMonth: 'asc' } } } }),
+    prisma.challenge.count({ where }), prisma.challenge.count(), prisma.challenge.count({ where: { status: 'DRAFT' } }), prisma.challenge.count({ where: { status: 'PUBLISHED' } }),
   ])
-  res.json({ summary: { total, drafts, published }, challenges: challenges.map(c => challengeDto(req, c)) })
+  res.json({ summary: { total, drafts, published }, challenges: challenges.map(c => challengeDto(req,c)), pagination: paginationMeta(page,pageSize,filteredTotal) })
 })
 
 app.get('/admin/challenges/:challengeId', async (req, res) => {
@@ -1704,32 +1699,17 @@ const requestStatusSchema = z.object({ status: z.enum(['PENDING', 'IN_PROGRESS',
 const orderStatusSchema = z.object({ status: z.enum(['PLACED', 'QUOTED', 'IN_PROGRESS', 'SHIPPED', 'DELIVERED', 'CANCELLED']) })
 
 app.get('/admin/requests', async (req, res) => {
-  const search = String(req.query.search ?? '').trim()
-  const status = String(req.query.status ?? '').trim()
-  const category = String(req.query.category ?? '').trim()
-  const where: any = {}
-  if (status) where.status = status
-  if (category) where.category = category
-  if (search) where.OR = [
-    { requesterName: { contains: search } },
-    { requesterEmail: { contains: search } },
-    { occasion: { contains: search } },
-    { prompt: { contains: search } },
-  ]
-  const [requests, total, pending, inProgress, completed, cancelled, categories] = await Promise.all([
-    prisma.poetryRequest.findMany({ where, orderBy: { createdAt: 'desc' } }),
-    prisma.poetryRequest.count(),
-    prisma.poetryRequest.count({ where: { status: 'PENDING' } }),
-    prisma.poetryRequest.count({ where: { status: 'IN_PROGRESS' } }),
-    prisma.poetryRequest.count({ where: { status: 'COMPLETED' } }),
-    prisma.poetryRequest.count({ where: { status: 'CANCELLED' } }),
-    prisma.poetryRequest.findMany({ distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } }),
+  const search = String(req.query.search ?? '').trim(), status = String(req.query.status ?? '').trim(), category = String(req.query.category ?? '').trim()
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const where:any = {}
+  if(status) where.status=status; if(category) where.category=category
+  if(search) where.OR=[{requesterName:{contains:search}},{requesterEmail:{contains:search}},{occasion:{contains:search}},{prompt:{contains:search}}]
+  const [requests,filteredTotal,total,pending,inProgress,completed,cancelled,categories]=await Promise.all([
+    prisma.poetryRequest.findMany({where,orderBy:{createdAt:'desc'},skip,take:pageSize}), prisma.poetryRequest.count({where}), prisma.poetryRequest.count(),
+    prisma.poetryRequest.count({where:{status:'PENDING'}}), prisma.poetryRequest.count({where:{status:'IN_PROGRESS'}}), prisma.poetryRequest.count({where:{status:'COMPLETED'}}), prisma.poetryRequest.count({where:{status:'CANCELLED'}}),
+    prisma.poetryRequest.findMany({distinct:['category'],select:{category:true},orderBy:{category:'asc'}}),
   ])
-  res.json({
-    summary: { total, pending, inProgress, completed, cancelled },
-    categories: categories.map(c => c.category),
-    requests,
-  })
+  res.json({summary:{total,pending,inProgress,completed,cancelled},categories:categories.map(c=>c.category),requests,pagination:paginationMeta(page,pageSize,filteredTotal)})
 })
 
 app.patch('/admin/requests/:requestId/status', async (req, res) => {
@@ -1747,32 +1727,16 @@ app.patch('/admin/requests/:requestId/status', async (req, res) => {
 })
 
 app.get('/admin/orders', async (req, res) => {
-  const search = String(req.query.search ?? '').trim()
-  const status = String(req.query.status ?? '').trim()
-  const reviewedOnly = String(req.query.reviewedOnly ?? '') === 'true'
-  const where: any = {}
-  if (status) where.status = status
-  if (reviewedOnly) where.reviewed = true
-  if (search) where.OR = [
-    { orderNumber: { contains: search } },
-    { customerName: { contains: search } },
-    { customerEmail: { contains: search } },
-    { cardTitle: { contains: search } },
-  ]
-  const [orders, total, placed, quoted, inProgress, shipped, delivered, cancelled] = await Promise.all([
-    prisma.cardOrder.findMany({ where, orderBy: { placedAt: 'desc' } }),
-    prisma.cardOrder.count(),
-    prisma.cardOrder.count({ where: { status: 'PLACED' } }),
-    prisma.cardOrder.count({ where: { status: 'QUOTED' } }),
-    prisma.cardOrder.count({ where: { status: 'IN_PROGRESS' } }),
-    prisma.cardOrder.count({ where: { status: 'SHIPPED' } }),
-    prisma.cardOrder.count({ where: { status: 'DELIVERED' } }),
-    prisma.cardOrder.count({ where: { status: 'CANCELLED' } }),
+  const search=String(req.query.search??'').trim(), status=String(req.query.status??'').trim(), reviewedOnly=String(req.query.reviewedOnly??'')==='true'
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const where:any={}; if(status)where.status=status;if(reviewedOnly)where.reviewed=true
+  if(search)where.OR=[{orderNumber:{contains:search}},{customerName:{contains:search}},{customerEmail:{contains:search}},{cardTitle:{contains:search}}]
+  const [orders,filteredTotal,total,placed,quoted,inProgress,shipped,delivered,cancelled]=await Promise.all([
+    prisma.cardOrder.findMany({where,orderBy:{placedAt:'desc'},skip,take:pageSize}), prisma.cardOrder.count({where}), prisma.cardOrder.count(),
+    prisma.cardOrder.count({where:{status:'PLACED'}}), prisma.cardOrder.count({where:{status:'QUOTED'}}), prisma.cardOrder.count({where:{status:'IN_PROGRESS'}}),
+    prisma.cardOrder.count({where:{status:'SHIPPED'}}), prisma.cardOrder.count({where:{status:'DELIVERED'}}), prisma.cardOrder.count({where:{status:'CANCELLED'}}),
   ])
-  res.json({
-    summary: { total, placed, quoted, inProgress, shipped, delivered, cancelled },
-    orders: orders.map(orderDto),
-  })
+  res.json({summary:{total,placed,quoted,inProgress,shipped,delivered,cancelled},orders:orders.map(orderDto),pagination:paginationMeta(page,pageSize,filteredTotal)})
 })
 
 app.get('/admin/orders/:orderId', async (req, res) => {
@@ -1834,24 +1798,15 @@ const notificationSchema = z.object({
 })
 
 app.get('/admin/notifications', async (req, res) => {
-  const search = String(req.query.search ?? '').trim()
-  const status = String(req.query.status ?? '').trim()
-  const audience = String(req.query.audience ?? '').trim()
-  const where: any = {}
-  if (status) where.status = status
-  if (audience) where.audience = audience
-  if (search) where.OR = [
-    { subject: { contains: search } },
-    { message: { contains: search } },
-    { recipientEmail: { contains: search } },
-  ]
-  const jobs = await prisma.notificationJob.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-    include: { selectedUser: { select: { id: true, fullName: true, email: true, phone: true } } },
-  })
-  res.json({ jobs })
+  const search=String(req.query.search??'').trim(),status=String(req.query.status??'').trim(),audience=String(req.query.audience??'').trim()
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const where:any={}; if(status)where.status=status;if(audience)where.audience=audience
+  if(search)where.OR=[{subject:{contains:search}},{message:{contains:search}},{recipientEmail:{contains:search}}]
+  const [jobs,total]=await Promise.all([
+    prisma.notificationJob.findMany({where,orderBy:{createdAt:'desc'},skip,take:pageSize,include:{selectedUser:{select:{id:true,fullName:true,email:true,phone:true}}}}),
+    prisma.notificationJob.count({where}),
+  ])
+  res.json({jobs,pagination:paginationMeta(page,pageSize,total)})
 })
 
 app.post('/admin/notifications', async (req, res) => {
@@ -1910,30 +1865,15 @@ app.patch('/admin/notifications/:jobId/status', async (req, res) => {
 })
 
 app.get('/admin/community', async (req, res) => {
-  const search = String(req.query.search ?? '').trim()
-  const status = String(req.query.status ?? '').trim()
-  const reportedOnly = String(req.query.reportedOnly ?? '') === 'true'
-  const where: any = {}
-  if (status) where.status = status
-  if (reportedOnly) where.isReported = true
-  if (search) where.OR = [
-    { authorName: { contains: search } },
-    { category: { contains: search } },
-    { title: { contains: search } },
-    { body: { contains: search } },
-  ]
-  const [posts, totalPosts, reportedPosts, reportedResponses] = await Promise.all([
-    prisma.communityPost.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: { responses: { orderBy: { createdAt: 'asc' } } },
-      take: 100,
-    }),
-    prisma.communityPost.count({ where: { status: 'PUBLISHED' } }),
-    prisma.communityPost.count({ where: { isReported: true } }),
-    prisma.communityResponse.count({ where: { isReported: true } }),
+  const search=String(req.query.search??'').trim(),status=String(req.query.status??'').trim(),reportedOnly=String(req.query.reportedOnly??'')==='true'
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const where:any={};if(status)where.status=status;if(reportedOnly)where.isReported=true
+  if(search)where.OR=[{authorName:{contains:search}},{category:{contains:search}},{title:{contains:search}},{body:{contains:search}}]
+  const [posts,filteredTotal,totalPosts,reportedPosts,reportedResponses]=await Promise.all([
+    prisma.communityPost.findMany({where,orderBy:{createdAt:'desc'},include:{responses:{orderBy:{createdAt:'asc'}}},skip,take:pageSize}),
+    prisma.communityPost.count({where}), prisma.communityPost.count({where:{status:'PUBLISHED'}}), prisma.communityPost.count({where:{isReported:true}}), prisma.communityResponse.count({where:{isReported:true}}),
   ])
-  res.json({ summary: { totalPosts, reportedPosts, reportedResponses }, posts })
+  res.json({summary:{totalPosts,reportedPosts,reportedResponses},posts,pagination:paginationMeta(page,pageSize,filteredTotal)})
 })
 
 app.patch('/admin/community/posts/:postId', async (req, res) => {
@@ -2094,7 +2034,6 @@ async function buildPersonalizedPdf(card: any, recipient: string, sender: string
   const leftLabel = 'For:'
   const rightLabel = 'With Love:'
   const footerHeight = Math.max(26, height * 0.075)
-  page.drawRectangle({ x: 0, y: 0, width, height: footerHeight, color: rgb(0.99, 0.98, 0.96), opacity: 0.88 })
   page.drawLine({ start: { x: marginX, y: footerHeight - 1 }, end: { x: width - marginX, y: footerHeight - 1 }, thickness: 0.5, color: rgb(0.72, 0.68, 0.63), opacity: 0.45 })
   page.drawText(leftLabel, { x: marginX, y: footerY + 1, size: labelSize, font: bold, color: muted })
   page.drawText(recipient, { x: marginX + bold.widthOfTextAtSize(leftLabel, labelSize) + 5, y: footerY, size: valueSize, font, color: ink })

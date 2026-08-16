@@ -172,8 +172,17 @@ export async function adminCreateCard(formData: FormData): Promise<LoveNoteCard>
   return body
 }
 
-export async function adminGetCards(): Promise<LoveNoteCard[]> {
-  const response = await apiFetch(`${API_BASE}/admin/cards`)
+export type AdminPagination = { page:number; pageSize:number; total:number; totalPages:number }
+
+export type AdminCardsResponse = {
+  summary:{total:number;drafts:number;published:number;featured:number}
+  cards:LoveNoteCard[]
+  pagination:AdminPagination
+}
+
+export async function adminGetCards(params:{search?:string;status?:string;page?:number;pageSize?:number}={}): Promise<AdminCardsResponse> {
+  const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v!==undefined&&v!==''&&v!==null)qs.set(k,String(v))})
+  const response = await apiFetch(`${API_BASE}/admin/cards${qs.size?`?${qs}`:''}`)
   if (!response.ok) throw new Error('Unable to load admin cards')
   return response.json()
 }
@@ -223,9 +232,10 @@ export type AdminUsersResponse = {
     blockedUsers: number
   }
   users: AdminUser[]
+  pagination: AdminPagination
 }
 
-export async function adminGetUsers(params: {search?: string; role?: string; status?: string; subscription?: string} = {}): Promise<AdminUsersResponse> {
+export async function adminGetUsers(params: {search?: string; role?: string; status?: string; subscription?: string; page?:number; pageSize?:number} = {}): Promise<AdminUsersResponse> {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
   const response = await apiFetch(`${API_BASE}/admin/users${qs.size ? `?${qs}` : ''}`)
@@ -256,6 +266,7 @@ export type AdminSubscriber = {
   startedAt?: string | null
   currentPeriodEnd?: string | null
   createdAt: string
+  stripeDashboardUrl?: string | null
 }
 
 export type AdminTransaction = {
@@ -266,6 +277,7 @@ export type AdminTransaction = {
   amount: number
   status: string
   description: string
+  stripeDashboardUrl?: string | null
 }
 
 export type AdminFailedPayment = {
@@ -287,9 +299,11 @@ export type AdminSubscriptionsResponse = {
   subscribers: AdminSubscriber[]
   transactions: AdminTransaction[]
   failedPayments: AdminFailedPayment[]
+  pagination: AdminPagination
+  transactionPagination: AdminPagination
 }
 
-export async function adminGetSubscriptions(params: {search?: string; status?: string} = {}): Promise<AdminSubscriptionsResponse> {
+export async function adminGetSubscriptions(params: {search?: string; status?: string; page?:number; pageSize?:number; transactionPage?:number; transactionPageSize?:number} = {}): Promise<AdminSubscriptionsResponse> {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
   const response = await apiFetch(`${API_BASE}/admin/subscriptions${qs.size ? `?${qs}` : ''}`)
@@ -372,9 +386,10 @@ export type AdminChallenge = {
 export type AdminChallengesResponse = {
   summary: { total: number; drafts: number; published: number }
   challenges: AdminChallenge[]
+  pagination: AdminPagination
 }
 
-export async function adminGetChallenges(params: {search?: string; status?: string; month?: string; year?: string} = {}): Promise<AdminChallengesResponse> {
+export async function adminGetChallenges(params: {search?: string; status?: string; month?: string; year?: string; page?:number; pageSize?:number} = {}): Promise<AdminChallengesResponse> {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
   const response = await apiFetch(`${API_BASE}/admin/challenges${qs.size ? `?${qs}` : ''}`)
@@ -422,9 +437,10 @@ export type AdminRequestsResponse = {
   summary: { total: number; pending: number; inProgress: number; completed: number; cancelled: number }
   categories: string[]
   requests: AdminPoetryRequest[]
+  pagination: AdminPagination
 }
 
-export async function adminGetRequests(params: {search?: string; status?: string; category?: string} = {}): Promise<AdminRequestsResponse> {
+export async function adminGetRequests(params: {search?: string; status?: string; category?: string; page?:number; pageSize?:number} = {}): Promise<AdminRequestsResponse> {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
   const response = await apiFetch(`${API_BASE}/admin/requests${qs.size ? `?${qs}` : ''}`)
@@ -474,13 +490,16 @@ export type AdminCardOrder = {
 export type AdminOrdersResponse = {
   summary: { total: number; placed: number; quoted: number; inProgress: number; shipped: number; delivered: number; cancelled: number }
   orders: AdminCardOrder[]
+  pagination: AdminPagination
 }
 
-export async function adminGetOrders(params: {search?: string; status?: string; reviewedOnly?: boolean} = {}): Promise<AdminOrdersResponse> {
+export async function adminGetOrders(params: {search?: string; status?: string; reviewedOnly?: boolean; page?:number; pageSize?:number} = {}): Promise<AdminOrdersResponse> {
   const qs = new URLSearchParams()
   if (params.search) qs.set('search', params.search)
   if (params.status) qs.set('status', params.status)
   if (params.reviewedOnly) qs.set('reviewedOnly', 'true')
+  if (params.page) qs.set('page', String(params.page))
+  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
   const response = await apiFetch(`${API_BASE}/admin/orders${qs.size ? `?${qs}` : ''}`)
   if (!response.ok) throw new Error('Unable to load orders')
   return response.json()
@@ -542,7 +561,7 @@ export type AdminNotificationJob = {
   selectedUser?: {id:string;fullName:string;email:string;phone?:string|null} | null
 }
 
-export async function adminGetNotifications(params:{search?:string;status?:string;audience?:string}={}):Promise<{jobs:AdminNotificationJob[]}> {
+export async function adminGetNotifications(params:{search?:string;status?:string;audience?:string;page?:number;pageSize?:number}={}):Promise<{jobs:AdminNotificationJob[];pagination:AdminPagination}> {
   const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v)qs.set(k,v)})
   const response=await apiFetch(`${API_BASE}/admin/notifications${qs.size?`?${qs}`:''}`)
   if(!response.ok) throw new Error('Unable to load notification jobs')
@@ -558,10 +577,10 @@ export async function adminCreateNotification(input:{channel:'EMAIL'|'SMS';audie
 
 export type AdminCommunityResponse={id:string;authorName:string;body:string;status:string;isReported:boolean;reportCount:number;createdAt:string}
 export type AdminCommunityPost={id:string;authorName:string;category:string;title:string;body:string;status:string;isReported:boolean;reportCount:number;responses:AdminCommunityResponse[];createdAt:string}
-export type AdminCommunityPayload={summary:{totalPosts:number;reportedPosts:number;reportedResponses:number};posts:AdminCommunityPost[]}
+export type AdminCommunityPayload={summary:{totalPosts:number;reportedPosts:number;reportedResponses:number};posts:AdminCommunityPost[];pagination:AdminPagination}
 
-export async function adminGetCommunity(params:{search?:string;status?:string;reportedOnly?:boolean}={}):Promise<AdminCommunityPayload>{
-  const qs=new URLSearchParams(); if(params.search)qs.set('search',params.search);if(params.status)qs.set('status',params.status);if(params.reportedOnly)qs.set('reportedOnly','true')
+export async function adminGetCommunity(params:{search?:string;status?:string;reportedOnly?:boolean;page?:number;pageSize?:number}={}):Promise<AdminCommunityPayload>{
+  const qs=new URLSearchParams(); if(params.search)qs.set('search',params.search);if(params.status)qs.set('status',params.status);if(params.reportedOnly)qs.set('reportedOnly','true');if(params.page)qs.set('page',String(params.page));if(params.pageSize)qs.set('pageSize',String(params.pageSize))
   const response=await apiFetch(`${API_BASE}/admin/community${qs.size?`?${qs}`:''}`)
   if(!response.ok) throw new Error('Unable to load community')
   return response.json()
@@ -648,6 +667,7 @@ export type BulkImportJob = {
   status: string
   errorMessage?: string | null
   items: BulkImportItem[]
+  pagination: AdminPagination
 }
 export async function adminStartBulkPdfImport(formData: FormData): Promise<{id:string,status:string}> {
   const response = await apiFetch(`${API_BASE}/admin/cards/bulk-import`, { method:'POST', body:formData })
@@ -655,8 +675,8 @@ export async function adminStartBulkPdfImport(formData: FormData): Promise<{id:s
   if(!response.ok) throw new Error(body.message ?? 'Unable to start bulk import')
   return body
 }
-export async function adminGetBulkPdfImport(jobId:string): Promise<BulkImportJob> {
-  const response = await apiFetch(`${API_BASE}/admin/cards/bulk-import/${jobId}`)
+export async function adminGetBulkPdfImport(jobId:string,page=1,pageSize=25): Promise<BulkImportJob> {
+  const response = await apiFetch(`${API_BASE}/admin/cards/bulk-import/${jobId}?page=${page}&pageSize=${pageSize}`)
   const body = await response.json().catch(()=>({}))
   if(!response.ok) throw new Error(body.message ?? 'Unable to load import progress')
   return body

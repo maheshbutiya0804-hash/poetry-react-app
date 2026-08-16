@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AdminHero, Panel } from '../components/AdminLayout'
+import { AdminHero, AdminPagination, Panel } from '../components/AdminLayout'
 import { adminGetBulkPdfImport, adminGetCollections, adminStartBulkPdfImport, type AdminCollection, type BulkImportJob } from '../../services/api'
 
 export function BulkUploadCardsPage(){
@@ -9,15 +9,16 @@ export function BulkUploadCardsPage(){
   const [zip,setZip]=useState<File|null>(null)
   const [publish,setPublish]=useState(false)
   const [job,setJob]=useState<BulkImportJob|null>(null)
+  const [itemPage,setItemPage]=useState(1)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
 
   useEffect(()=>{adminGetCollections().then(items=>setCollections(items.filter(i=>i.isActive))).catch(e=>setError(e.message))},[])
   useEffect(()=>{
     if(!job || ['COMPLETE','FAILED'].includes(job.status)) return
-    const timer=window.setInterval(()=>adminGetBulkPdfImport(job.id).then(setJob).catch(e=>setError(e.message)),1500)
+    const timer=window.setInterval(()=>adminGetBulkPdfImport(job.id,itemPage,25).then(setJob).catch(e=>setError(e.message)),1500)
     return()=>window.clearInterval(timer)
-  },[job?.id,job?.status])
+  },[job?.id,job?.status,itemPage])
 
   const progress=useMemo(()=>job?.totalFiles ? Math.round((job.processedFiles/job.totalFiles)*100) : 0,[job])
   async function start(){
@@ -27,7 +28,7 @@ export function BulkUploadCardsPage(){
     try{
       const fd=new FormData();fd.set('collectionId',collectionId);fd.set('publish',String(publish));fd.set('zip',zip)
       const started=await adminStartBulkPdfImport(fd)
-      setJob(await adminGetBulkPdfImport(started.id))
+      setItemPage(1);setJob(await adminGetBulkPdfImport(started.id,1,25))
     }catch(e){setError(e instanceof Error?e.message:'Unable to upload ZIP')}finally{setBusy(false)}
   }
 
@@ -46,6 +47,6 @@ export function BulkUploadCardsPage(){
     <div className="bulk-progress"><div><span style={{width:`${progress}%`}}/></div><b>{job.status} · {progress}%</b></div>
     <div className="bulk-summary"><div><strong>{job.totalFiles}</strong><span>PDFs found</span></div><div><strong>{job.processedFiles}</strong><span>Processed</span></div><div><strong>{job.successCount}</strong><span>Ready</span></div><div><strong>{job.failedCount}</strong><span>Failed</span></div></div>
     {job.errorMessage&&<div className="hs-error">{job.errorMessage}</div>}
-    {!!job.items?.length&&<div className="bulk-items"><div className="bulk-item head"><span>FILE</span><span>TITLE</span><span>PAGES</span><span>STATUS</span></div>{job.items.map(item=><div className="bulk-item" key={item.id}><span>{item.originalFilename}</span><span>{item.title}</span><span>{item.pageCount??'—'}</span><span><em className={`hs-pill ${item.status==='READY'?'green':''}`}>{item.status}</em>{item.errorMessage&&<small>{item.errorMessage}</small>}</span></div>)}</div>}
+    {!!job.items?.length&&<><div className="bulk-items"><div className="bulk-item head"><span>FILE</span><span>TITLE</span><span>PAGES</span><span>STATUS</span></div>{job.items.map(item=><div className="bulk-item" key={item.id}><span>{item.originalFilename}</span><span>{item.title}</span><span>{item.pageCount??'—'}</span><span><em className={`hs-pill ${item.status==='READY'?'green':''}`}>{item.status}</em>{item.errorMessage&&<small>{item.errorMessage}</small>}</span></div>)}</div><AdminPagination {...job.pagination} onPageChange={setItemPage}/></>}
   </Panel>}</>
 }
