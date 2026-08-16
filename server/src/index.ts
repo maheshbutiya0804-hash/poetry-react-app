@@ -1645,6 +1645,9 @@ app.post('/admin/challenges', upload.single('image'), async (req, res) => {
       timeOfDay: z.string().regex(/^\d{2}:\d{2}$/),
       channel: z.enum(['EMAIL', 'SMS']),
       isActive: z.boolean().optional().default(true),
+      emailSubject: z.string().max(255).optional().default(''),
+      emailMessage: z.string().max(10000).optional().default(''),
+      smsMessage: z.string().max(2000).optional().default(''),
     })).parse(JSON.parse(fields.reminders || '[]'))
 
     const id = randomUUID()

@@ -98,13 +98,13 @@ export function ChallengesPage() {
             <section className="mb-5 flex items-center justify-between gap-4 rounded-[26px] border border-[rgba(57,47,39,0.12)] bg-[linear-gradient(180deg,rgba(249,245,239,0.88),rgba(252,250,247,0.95))] p-5 max-[980px]:flex-wrap max-[720px]:p-[18px]" aria-label="Challenges filters">
               <div className="flex min-w-0 flex-1 items-center gap-3 max-[980px]:flex-wrap">
                 <div className="relative mx-auto w-full max-w-3xl flex-1 max-w-none min-w-36">
-                  <svg aria-hidden="true" className="pointer-events-none absolute left-5 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-[#877b70]" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search challenges" className="min-h-[52px] w-full rounded-full border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] py-0 pl-14 pr-[18px] text-[#2f2a25] outline-none transition placeholder:text-[#8c8175] focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)]" type="search" />
+                  <svg aria-hidden="true" className="pointer-events-none absolute left-5 top-1/2 z-20 h-[18px] w-[18px] -translate-y-1/2 text-[#17392f]" style={{ display: 'block', opacity: 1 }} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search challenges" className="relative z-10 min-h-[52px] w-full border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] py-0 pr-[18px] text-[#2f2a25] outline-none transition placeholder:text-[#8c8175] focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)]" style={{ borderRadius: '3.40282e38px', paddingLeft: '56px' }} type="search" />
                 </div>
 
                 <label className="relative">
                   <span className="sr-only">Filter by status</span>
-                  <select value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter by status" className="min-h-[52px] min-w-[190px] appearance-none rounded-full border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] px-4 pr-12 text-[#2f2a25] outline-none transition focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)] max-[980px]:flex-1 max-[980px]:min-w-0">
+                  <select value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter by status" className="min-h-[52px] min-w-[190px] appearance-none border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] px-4 pr-12 text-[#2f2a25] outline-none transition focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)] max-[980px]:flex-1 max-[980px]:min-w-0" style={{ borderRadius: '3.40282e38px' }}>
                     <option value="">Challenge Status</option><option value="DRAFT">Draft</option><option value="SCHEDULED">Scheduled</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option><option value="DELETED">Deleted</option>
                   </select>
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#776d62]"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
@@ -112,14 +112,14 @@ export function ChallengesPage() {
 
                 <label className="relative">
                   <span className="sr-only">Filter by month</span>
-                  <select value={month} onChange={e => setMonth(e.target.value)} aria-label="Filter by month" className="min-h-[52px] min-w-[190px] appearance-none rounded-full border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] px-4 pr-12 text-[#2f2a25] outline-none transition focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)] max-[980px]:flex-1 max-[980px]:min-w-0">
+                  <select value={month} onChange={e => setMonth(e.target.value)} aria-label="Filter by month" className="min-h-[52px] min-w-[190px] appearance-none border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] px-4 pr-12 text-[#2f2a25] outline-none transition focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)] max-[980px]:flex-1 max-[980px]:min-w-0" style={{ borderRadius: '3.40282e38px' }}>
                     <option value="">Challenge Month</option>
                     {Array.from({ length: 12 }, (_, i) => <option key={i} value={String(i + 1)}>{new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2026, i, 1))}</option>)}
                   </select>
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#776d62]"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
                 </label>
 
-                <div className="max-w-[120px] min-w-[80px] flex-1"><input value={year} onChange={e => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Year" className="min-h-[52px] w-full rounded-full border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] px-4 text-[#2f2a25] outline-none transition focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)]" inputMode="numeric" /></div>
+                <div className="max-w-[120px] min-w-[80px] flex-1"><input value={year} onChange={e => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Year" className="min-h-[52px] w-full border border-[rgba(57,47,39,0.12)] bg-[#fcfaf7] px-4 text-[#2f2a25] outline-none transition focus:border-[rgba(23,57,47,0.26)] focus:bg-[#fffdfa] focus:ring-4 focus:ring-[rgba(23,57,47,0.06)]" style={{ borderRadius: '3.40282e38px' }} inputMode="numeric" /></div>
               </div>
             </section>
 

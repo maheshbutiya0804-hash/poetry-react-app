@@ -381,6 +381,9 @@ export type AdminChallengeReminder = {
   timeOfDay: string
   channel: 'EMAIL' | 'SMS'
   isActive: boolean
+  emailSubject?: string | null
+  emailMessage?: string | null
+  smsMessage?: string | null
 }
 
 export type AdminChallenge = {

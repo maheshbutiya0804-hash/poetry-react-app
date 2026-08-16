@@ -237,6 +237,9 @@ model ChallengeReminder {
   timeOfDay   String    @default("09:00") @db.VarChar(10)
   channel     String    @default("EMAIL") @db.VarChar(20)
   isActive    Boolean   @default(true)
+  emailSubject String?   @db.VarChar(255)
+  emailMessage String?   @db.Text
+  smsMessage   String?   @db.Text
   createdAt   DateTime  @default(now())
 
   @@index([challengeId, dayOfMonth])
