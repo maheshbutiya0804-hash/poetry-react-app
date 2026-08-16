@@ -30,4 +30,5 @@ export type LoveNoteCard = {
   orientation?: string
   sideCount?: number
   pageCount?: number
+  updatedAt?: string
 }

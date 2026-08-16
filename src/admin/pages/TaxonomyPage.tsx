@@ -25,7 +25,7 @@ export function TaxonomyPage({kind,load,create,update,remove}:Props){
   const refresh=()=>{setError('');return load().then(setItems).catch(e=>setError(e.message))}
   useEffect(()=>{void refresh()},[])
   const filtered=useMemo(()=>items.filter(i=>`${i.name} ${i.slug} ${i.description??''}`.toLowerCase().includes(query.toLowerCase())),[items,query])
-  const pageSize=20, totalPages=Math.max(1,Math.ceil(filtered.length/pageSize)), paged=filtered.slice((page-1)*pageSize,page*pageSize)
+  const pageSize=10, totalPages=Math.max(1,Math.ceil(filtered.length/pageSize)), paged=filtered.slice((page-1)*pageSize,page*pageSize)
   useEffect(()=>setPage(1),[query])
   function startEdit(item:TaxonomyItem){setEditing(item);setForm({name:item.name,slug:item.slug,description:item.description??'',isActive:item.isActive,sortOrder:item.sortOrder});window.scrollTo({top:0,behavior:'smooth'})}
   function reset(){setEditing(null);setForm(empty);setError('')}

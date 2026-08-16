@@ -15,6 +15,7 @@ model Collection {
   isActive    Boolean  @default(true)
   cards       Card[]
   communityPosts CommunityPost[]
+  poetryRequests PoetryRequest[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -249,6 +250,8 @@ model PoetryRequest {
   requesterName  String    @db.VarChar(191)
   requesterEmail String    @db.VarChar(191)
   category       String    @db.VarChar(120)
+  collectionId   String?   @db.VarChar(191)
+  collection     Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   occasion       String?   @db.VarChar(191)
   prompt         String    @db.Text
   status         String    @default("PENDING") @db.VarChar(32)
@@ -259,6 +262,7 @@ model PoetryRequest {
 
   @@index([status, createdAt])
   @@index([category])
+  @@index([collectionId])
   @@index([userId])
   @@map("poetryrequest")
 }

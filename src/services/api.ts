@@ -180,11 +180,27 @@ export type AdminCardsResponse = {
   pagination:AdminPagination
 }
 
-export async function adminGetCards(params:{search?:string;status?:string;page?:number;pageSize?:number}={}): Promise<AdminCardsResponse> {
+export async function adminGetCards(params:{search?:string;status?:string;collectionId?:string;featured?:boolean;page?:number;pageSize?:number}={}): Promise<AdminCardsResponse> {
   const qs=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{if(v!==undefined&&v!==''&&v!==null)qs.set(k,String(v))})
   const response = await apiFetch(`${API_BASE}/admin/cards${qs.size?`?${qs}`:''}`)
   if (!response.ok) throw new Error('Unable to load admin cards')
-  return response.json()
+  const body = await response.json()
+  if (Array.isArray(body)) {
+    const cards = body as LoveNoteCard[]
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 10
+    return {
+      summary:{
+        total:cards.length,
+        drafts:cards.filter(card=>!card.published).length,
+        published:cards.filter(card=>card.published).length,
+        featured:cards.filter(card=>card.isFeatured).length,
+      },
+      cards,
+      pagination:{page,pageSize,total:cards.length,totalPages:Math.max(1,Math.ceil(cards.length/pageSize))},
+    }
+  }
+  return body as AdminCardsResponse
 }
 
 export async function adminGetCard(cardId: string): Promise<LoveNoteCard> {
@@ -424,6 +440,7 @@ export type AdminPoetryRequest = {
   requesterName: string
   requesterEmail: string
   category: string
+  collectionId?: string | null
   occasion?: string | null
   prompt: string
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
@@ -436,16 +453,24 @@ export type AdminPoetryRequest = {
 export type AdminRequestsResponse = {
   summary: { total: number; pending: number; inProgress: number; completed: number; cancelled: number }
   categories: string[]
+  collections: { id: string; name: string; slug: string }[]
   requests: AdminPoetryRequest[]
   pagination: AdminPagination
 }
 
-export async function adminGetRequests(params: {search?: string; status?: string; category?: string; page?:number; pageSize?:number} = {}): Promise<AdminRequestsResponse> {
+export async function adminGetRequests(params: {search?: string; status?: string; category?: string; collection?: string; page?:number; pageSize?:number} = {}): Promise<AdminRequestsResponse> {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => { if (value) qs.set(key, value) })
   const response = await apiFetch(`${API_BASE}/admin/requests${qs.size ? `?${qs}` : ''}`)
   if (!response.ok) throw new Error('Unable to load requests')
-  return response.json()
+  const body = await response.json()
+  return {
+    summary: body?.summary ?? { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0 },
+    categories: Array.isArray(body?.categories) ? body.categories : [],
+    collections: Array.isArray(body?.collections) ? body.collections : [],
+    requests: Array.isArray(body?.requests) ? body.requests : [],
+    pagination: body?.pagination ?? { page: 1, pageSize: 10, total: 0, totalPages: 1 },
+  }
 }
 
 export async function adminSetRequestStatus(requestId: string, status: AdminPoetryRequest['status']): Promise<AdminPoetryRequest> {
@@ -675,7 +700,7 @@ export async function adminStartBulkPdfImport(formData: FormData): Promise<{id:s
   if(!response.ok) throw new Error(body.message ?? 'Unable to start bulk import')
   return body
 }
-export async function adminGetBulkPdfImport(jobId:string,page=1,pageSize=25): Promise<BulkImportJob> {
+export async function adminGetBulkPdfImport(jobId:string,page=1,pageSize=10): Promise<BulkImportJob> {
   const response = await apiFetch(`${API_BASE}/admin/cards/bulk-import/${jobId}?page=${page}&pageSize=${pageSize}`)
   const body = await response.json().catch(()=>({}))
   if(!response.ok) throw new Error(body.message ?? 'Unable to load import progress')

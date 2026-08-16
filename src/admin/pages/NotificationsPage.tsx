@@ -9,10 +9,10 @@ export function NotificationsPage(){
  const [audience,setAudience]=useState<'SINGLE_USER'|'SUBSCRIBERS_ONLY'|'ALL_USERS'>('SINGLE_USER')
  const [subject,setSubject]=useState(''),[recipientEmail,setRecipientEmail]=useState(''),[message,setMessage]=useState('')
  const [userSearch,setUserSearch]=useState(''),[users,setUsers]=useState<AdminUser[]>([]),[selected,setSelected]=useState<AdminUser|null>(null)
- const [jobs,setJobs]=useState<AdminNotificationJob[]>([]),[jobPagination,setJobPagination]=useState({page:1,pageSize:20,total:0,totalPages:1}),[jobPage,setJobPage]=useState(1),[jobSearch,setJobSearch]=useState(''),[jobStatus,setJobStatus]=useState(''),[jobAudience,setJobAudience]=useState('')
+ const [jobs,setJobs]=useState<AdminNotificationJob[]>([]),[jobPagination,setJobPagination]=useState({page:1,pageSize:10,total:0,totalPages:1}),[jobPage,setJobPage]=useState(1),[jobSearch,setJobSearch]=useState(''),[jobStatus,setJobStatus]=useState(''),[jobAudience,setJobAudience]=useState('')
  const [error,setError]=useState(''),[sending,setSending]=useState(false)
 
- async function loadJobs(){try{const result=await adminGetNotifications({search:jobSearch,status:jobStatus,audience:jobAudience,page:jobPage,pageSize:20});setJobs(result.jobs);setJobPagination(result.pagination)}catch(e){setError(e instanceof Error?e.message:'Unable to load jobs')}}
+ async function loadJobs(){try{const result=await adminGetNotifications({search:jobSearch,status:jobStatus,audience:jobAudience,page:jobPage,pageSize:10});setJobs(result.jobs);setJobPagination(result.pagination)}catch(e){setError(e instanceof Error?e.message:'Unable to load jobs')}}
  useEffect(()=>{const t=setTimeout(loadJobs,160);return()=>clearTimeout(t)},[jobSearch,jobStatus,jobAudience,jobPage])
  useEffect(()=>setJobPage(1),[jobSearch,jobStatus,jobAudience])
  useEffect(()=>{const t=setTimeout(async()=>{try{setUsers((await adminGetUsers({search:userSearch,page:1,pageSize:8})).users)}catch{}},160);return()=>clearTimeout(t)},[userSearch])

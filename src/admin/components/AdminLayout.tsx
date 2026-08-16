@@ -24,7 +24,7 @@ export function AdminHero({eyebrow='ADMIN PANEL',title,copy,action}:{eyebrow?:st
 export function StatCard({label,value,note,accent=false}:{label:string,value:string|number,note:string,accent?:boolean}){return <div className={`hs-stat ${accent?'accent':''}`}><span>{label}</span><strong>{value}</strong><p>{note}</p></div>}
 export function Panel({children,className=''}:{children:ReactNode,className?:string}){return <section className={`hs-panel ${className}`}>{children}</section>}
 
-export function AdminPagination({page,totalPages,total,onPageChange,pageSize=20}:{page:number;totalPages:number;total:number;onPageChange:(page:number)=>void;pageSize?:number}){
+export function AdminPagination({page,totalPages,total,onPageChange,pageSize=10}:{page:number;totalPages:number;total:number;onPageChange:(page:number)=>void;pageSize?:number}){
   if(totalPages<=1&&total<=pageSize)return <div className="hs-pagination single"><span>{total} record{total===1?'':'s'}</span></div>
   const start=total===0?0:(page-1)*pageSize+1, end=Math.min(total,page*pageSize)
   return <div className="hs-pagination"><span>Showing <b>{start}-{end}</b> of <b>{total}</b></span><div><button disabled={page<=1} onClick={()=>onPageChange(page-1)}>← Previous</button><span>Page <b>{page}</b> of <b>{totalPages}</b></span><button disabled={page>=totalPages} onClick={()=>onPageChange(page+1)}>Next →</button></div></div>

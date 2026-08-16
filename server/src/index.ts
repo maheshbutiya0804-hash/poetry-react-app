@@ -61,7 +61,7 @@ app.use(cors({
 }))
 
 
-function paginationFromQuery(req: express.Request, defaultPageSize = 20) {
+function paginationFromQuery(req: express.Request, defaultPageSize = 10) {
   const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1)
   const pageSize = Math.min(100, Math.max(5, Number.parseInt(String(req.query.pageSize ?? defaultPageSize), 10) || defaultPageSize))
   return { page, pageSize, skip: (page - 1) * pageSize }
@@ -248,6 +248,7 @@ const publicCardSelect = {
   collectionId: true,
   categoryId: true,
   category: { select: { id: true, name: true, slug: true } },
+  collection: { select: { id: true, name: true, slug: true } },
   title: true,
   description: true,
   pdfPath: true,
@@ -264,6 +265,7 @@ const publicCardSelect = {
   templateKey: true,
   frontLayout: true,
   backLayout: true,
+  updatedAt: true,
 } as const
 
 function absoluteAssetUrl(req: express.Request, relativePath: string | null) {
@@ -278,6 +280,7 @@ function cardDto(req: express.Request, card: any) {
     collectionId: card.collectionId,
     categoryId: card.categoryId ?? null,
     categoryName: card.category?.name ?? null,
+    collectionName: card.collection?.name ?? null,
     title: card.title,
     excerpt: card.description,
     previewImageUrl: absoluteAssetUrl(req, card.previewPath) ?? '',
@@ -295,6 +298,7 @@ function cardDto(req: express.Request, card: any) {
     orientation: card.orientation,
     sideCount: card.sideCount,
     pageCount: card.pageCount,
+    updatedAt: card.updatedAt,
   }
 }
 
@@ -1131,7 +1135,7 @@ app.post('/admin/cards/bulk-import', bulkZipUpload.single('zip'), async (req, re
 })
 
 app.get('/admin/cards/bulk-import/:jobId', async (req, res) => {
-  const { page, pageSize, skip } = paginationFromQuery(req, 25)
+  const { page, pageSize, skip } = paginationFromQuery(req, 10)
   const job = await prisma.cardImportJob.findUnique({ where: { id: req.params.jobId } })
   if (!job) return res.status(404).json({ message: 'Import job not found.' })
   const [items,total] = await Promise.all([
@@ -1142,13 +1146,27 @@ app.get('/admin/cards/bulk-import/:jobId', async (req, res) => {
 })
 
 app.get('/admin/cards', async (req, res) => {
+  // Backward compatibility: older admin bundles expect this endpoint to return
+  // a plain array and call Array.filter() on it. Newer bundles pass page/pageSize
+  // and expect the paginated object shape below. This avoids a deploy-order/cache
+  // mismatch causing `filter is not a function`.
+  const wantsPagination = req.query.page !== undefined || req.query.pageSize !== undefined || req.query.search !== undefined || req.query.status !== undefined || req.query.collectionId !== undefined || req.query.featured !== undefined
+  if (!wantsPagination) {
+    const cards = await prisma.card.findMany({ orderBy: { createdAt: 'desc' }, select: publicCardSelect })
+    return res.json(cards.map(card => cardDto(req, card)))
+  }
+
   const { page, pageSize, skip } = paginationFromQuery(req)
   const search = String(req.query.search ?? '').trim()
   const status = String(req.query.status ?? '').trim()
+  const collectionId = String(req.query.collectionId ?? '').trim()
+  const featured = String(req.query.featured ?? '').trim()
   const where: any = {}
   if (search) where.OR = [{ title: { contains: search } }, { description: { contains: search } }]
   if (status === 'published') where.isPublished = true
   if (status === 'draft') where.isPublished = false
+  if (collectionId) where.collectionId = collectionId
+  if (featured === 'true') where.isFeatured = true
   const [cards, filteredTotal, total, drafts, published, featured] = await Promise.all([
     prisma.card.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, select: publicCardSelect }),
     prisma.card.count({ where }),
@@ -1157,7 +1175,7 @@ app.get('/admin/cards', async (req, res) => {
     prisma.card.count({ where: { isPublished: true } }),
     prisma.card.count({ where: { isFeatured: true } }),
   ])
-  res.json({
+  return res.json({
     summary: { total, drafts, published, featured },
     cards: cards.map(card => cardDto(req, card)),
     pagination: paginationMeta(page, pageSize, filteredTotal),
@@ -1699,17 +1717,18 @@ const requestStatusSchema = z.object({ status: z.enum(['PENDING', 'IN_PROGRESS',
 const orderStatusSchema = z.object({ status: z.enum(['PLACED', 'QUOTED', 'IN_PROGRESS', 'SHIPPED', 'DELIVERED', 'CANCELLED']) })
 
 app.get('/admin/requests', async (req, res) => {
-  const search = String(req.query.search ?? '').trim(), status = String(req.query.status ?? '').trim(), category = String(req.query.category ?? '').trim()
+  const search = String(req.query.search ?? '').trim(), status = String(req.query.status ?? '').trim(), category = String(req.query.category ?? '').trim(), collection = String(req.query.collection ?? '').trim()
   const { page, pageSize, skip } = paginationFromQuery(req)
   const where:any = {}
-  if(status) where.status=status; if(category) where.category=category
+  if(status) where.status=status; if(category) where.category=category; if(collection) where.collectionId=collection
   if(search) where.OR=[{requesterName:{contains:search}},{requesterEmail:{contains:search}},{occasion:{contains:search}},{prompt:{contains:search}}]
-  const [requests,filteredTotal,total,pending,inProgress,completed,cancelled,categories]=await Promise.all([
+  const [requests,filteredTotal,total,pending,inProgress,completed,cancelled,categories,collections]=await Promise.all([
     prisma.poetryRequest.findMany({where,orderBy:{createdAt:'desc'},skip,take:pageSize}), prisma.poetryRequest.count({where}), prisma.poetryRequest.count(),
     prisma.poetryRequest.count({where:{status:'PENDING'}}), prisma.poetryRequest.count({where:{status:'IN_PROGRESS'}}), prisma.poetryRequest.count({where:{status:'COMPLETED'}}), prisma.poetryRequest.count({where:{status:'CANCELLED'}}),
     prisma.poetryRequest.findMany({distinct:['category'],select:{category:true},orderBy:{category:'asc'}}),
+    prisma.collection.findMany({where:{isActive:true},select:{id:true,name:true,slug:true},orderBy:{sortOrder:'asc'}}),
   ])
-  res.json({summary:{total,pending,inProgress,completed,cancelled},categories:categories.map(c=>c.category),requests,pagination:paginationMeta(page,pageSize,filteredTotal)})
+  res.json({summary:{total,pending,inProgress,completed,cancelled},categories:categories.map(c=>c.category),collections,requests,pagination:paginationMeta(page,pageSize,filteredTotal)})
 })
 
 app.patch('/admin/requests/:requestId/status', async (req, res) => {
