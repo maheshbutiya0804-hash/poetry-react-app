@@ -52,7 +52,7 @@ export function BrowsePage() {
             </svg>
             <input
               placeholder="Search cards, occasions, or feelings"
-              className="h-[58px] w-full rounded-full border border-[rgba(57,47,39,0.1)] bg-[#f4eee5] px-[22px] py-0 pl-[54px] text-charcoal outline-none"
+              className="h-[58px] w-full border border-[rgba(57,47,39,0.1)] bg-[#f4eee5] text-charcoal outline-none" style={{ borderRadius: "3.40282e38px", padding: "13px 54px", backgroundColor: "#f4eee5" }}
               type="search"
               value={query}
               onChange={event => setQuery(event.target.value)}
@@ -63,7 +63,7 @@ export function BrowsePage() {
         </div>
 
         {!query.trim() ? (
-          <section className="mx-auto flex flex-1 flex-col items-center justify-center gap-6 text-center max-w-2xl">
+          <section className="mx-auto flex flex-1 w-full max-w-2xl flex-col items-center justify-center gap-6 py-12 text-center">
             <h1 className="font-serif text-4xl font-semibold leading-[0.96] tracking-[-0.03em] md:text-5xl">Search for a feeling, occasion, or quiet thought.</h1>
             <p className="max-w-[80%] text-sm md:text-base text-muted">Type a word like love, birthday, mother, anniversary, or gratitude to discover poetry cards made for that moment.</p>
           </section>
@@ -79,13 +79,18 @@ export function BrowsePage() {
             ) : error ? (
               <section className="mx-auto flex min-h-[220px] w-full max-w-2xl items-center justify-center text-center text-sm text-red-700">{error}</section>
             ) : results.length ? (
-              <section className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 justify-items-center sm:justify-items-stretch">
+              <div className="note-product-grid">
                 {results.map(card => (
-                  <Link key={card.id} className="block w-full max-w-[15.625rem]" to={`/cards/${card.id}`} aria-label={`View ${card.title}`}>
-                    <CardPreview card={card} className="w-full" />
+                  <Link key={card.id} className="note-product" to={`/cards/${card.id}`} aria-label={`View ${card.title}`}>
+                    <CardPreview card={card} />
+                    <div className="note-product-copy">
+                      <h3>{card.title}</h3>
+                      <p>{card.excerpt}</p>
+                      <span>Preview card →</span>
+                    </div>
                   </Link>
                 ))}
-              </section>
+              </div>
             ) : (
               <section className="mx-auto flex min-h-[240px] w-full max-w-2xl flex-col items-center justify-center gap-3 text-center">
                 <h2 className="font-serif text-3xl font-semibold text-charcoal">No cards found</h2>
