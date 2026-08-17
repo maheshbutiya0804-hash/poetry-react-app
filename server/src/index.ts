@@ -14,6 +14,7 @@ import { createLoginSession, destroyLoginSession, getAuthenticatedUser, hashPass
 import { OAuth2Client } from 'google-auth-library'
 import unzipper from 'unzipper'
 import Stripe from 'stripe'
+import { isValidE164Phone, normalizeE164Phone, sendTwilioSms } from './lib/twilio.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -1900,6 +1901,8 @@ app.post('/admin/notifications', async (req, res) => {
   let totalRecipients = 0
   let recipientEmail = data.recipientEmail?.trim() || null
   let recipientPhone = data.recipientPhone?.trim() || null
+  let smsRecipients: string[] = []
+
   if (data.audience === 'SINGLE_USER') {
     if (data.selectedUserId) {
       selectedUser = await prisma.user.findUnique({ where: { id: data.selectedUserId } })
@@ -1908,16 +1911,49 @@ app.post('/admin/notifications', async (req, res) => {
       recipientPhone = recipientPhone || selectedUser.phone
     }
     if (data.channel === 'EMAIL' && !selectedUser && !recipientEmail) return res.status(400).json({ message: 'Choose a user or enter a recipient email.' })
-    if (data.channel === 'SMS' && !recipientPhone) return res.status(400).json({ message: 'Choose a user with a phone number or enter a recipient phone.' })
+    if (data.channel === 'SMS') {
+      if (!recipientPhone) return res.status(400).json({ message: 'Choose a user with a phone number or enter a recipient phone.' })
+      if (!isValidE164Phone(recipientPhone)) return res.status(400).json({ message: 'Recipient phone must use E.164 format, for example +14155550123.' })
+      recipientPhone = normalizeE164Phone(recipientPhone)
+      smsRecipients = [recipientPhone]
+    }
     totalRecipients = 1
   } else if (data.audience === 'SUBSCRIBERS_ONLY') {
-    totalRecipients = await prisma.subscription.count({ where: { status: 'ACTIVE', user: { status: 'ACTIVE' } } })
+    if (data.channel === 'SMS') {
+      const subscriptions = await prisma.subscription.findMany({
+        where: {
+          status: 'ACTIVE',
+          user: { status: 'ACTIVE', phone: { not: null } },
+          OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+        },
+        select: { user: { select: { phone: true } } },
+      })
+      smsRecipients = subscriptions.map((row) => normalizeE164Phone(row.user.phone)).filter(isValidE164Phone)
+      totalRecipients = smsRecipients.length
+    } else {
+      totalRecipients = await prisma.subscription.count({
+        where: {
+          status: 'ACTIVE',
+          user: { status: 'ACTIVE' },
+          OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+        },
+      })
+    }
   } else {
-    totalRecipients = await prisma.user.count({ where: { status: 'ACTIVE' } })
+    if (data.channel === 'SMS') {
+      const users = await prisma.user.findMany({ where: { status: 'ACTIVE', phone: { not: null } }, select: { phone: true } })
+      smsRecipients = users.map((user) => normalizeE164Phone(user.phone)).filter(isValidE164Phone)
+      totalRecipients = smsRecipients.length
+    } else {
+      totalRecipients = await prisma.user.count({ where: { status: 'ACTIVE' } })
+    }
   }
 
-  // Provider delivery (SMTP/SMS) is intentionally not simulated here. This creates a real queue/history record.
-  const job = await prisma.notificationJob.create({
+  if (data.channel === 'SMS' && totalRecipients === 0) {
+    return res.status(400).json({ message: 'No recipients with valid E.164 phone numbers were found.' })
+  }
+
+  const queuedJob = await prisma.notificationJob.create({
     data: {
       channel: data.channel,
       audience: data.audience,
@@ -1926,12 +1962,48 @@ app.post('/admin/notifications', async (req, res) => {
       recipientPhone,
       subject: data.subject?.trim() || null,
       message: data.message,
-      status: 'QUEUED',
+      status: data.channel === 'SMS' ? 'SENDING' : 'QUEUED',
       totalRecipients,
     },
     include: { selectedUser: { select: { id: true, fullName: true, email: true, phone: true } } },
   })
-  res.status(201).json(job)
+
+  // Email remains queued for the existing email provider workflow.
+  if (data.channel === 'EMAIL') return res.status(201).json(queuedJob)
+
+  let sentCount = 0
+  let failedCount = 0
+  let firstError = ''
+
+  // Keep concurrency modest so an admin broadcast does not create an excessive burst of requests.
+  for (let index = 0; index < smsRecipients.length; index += 10) {
+    const batch = smsRecipients.slice(index, index + 10)
+    const results = await Promise.allSettled(batch.map((phone) => sendTwilioSms(phone, data.message)))
+    for (const result of results) {
+      if (result.status === 'fulfilled') sentCount += 1
+      else {
+        failedCount += 1
+        if (!firstError) firstError = result.reason instanceof Error ? result.reason.message : 'Twilio SMS failed.'
+      }
+    }
+  }
+
+  const finalStatus = sentCount > 0 ? 'SENT' : 'FAILED'
+  const job = await prisma.notificationJob.update({
+    where: { id: queuedJob.id },
+    data: {
+      status: finalStatus,
+      sentCount,
+      failedCount,
+      sentAt: sentCount > 0 ? new Date() : null,
+    },
+    include: { selectedUser: { select: { id: true, fullName: true, email: true, phone: true } } },
+  })
+
+  if (sentCount === 0) {
+    return res.status(502).json({ ...job, message: firstError || 'Twilio could not send the SMS.' })
+  }
+  return res.status(201).json({ ...job, warning: failedCount > 0 ? `${failedCount} SMS message(s) failed to send.` : undefined })
 })
 
 app.patch('/admin/notifications/:jobId/status', async (req, res) => {
