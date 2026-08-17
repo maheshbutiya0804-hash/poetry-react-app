@@ -122,6 +122,8 @@ model User {
   passwordHash     String?              @db.VarChar(255)
   googleSubject    String?              @unique @db.VarChar(191)
   profileImageUrl  String?              @db.VarChar(500)
+  challengeEmailEnabled Boolean          @default(true)
+  challengeSmsEnabled   Boolean          @default(true)
   lastLoginAt      DateTime?
   role             String               @default("USER") @db.VarChar(32)
   status           String               @default("ACTIVE") @db.VarChar(32)
@@ -256,6 +258,9 @@ model PoetryRequest {
   collectionId   String?   @db.VarChar(191)
   collection     Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   occasion       String?   @db.VarChar(191)
+  recipientName  String?   @db.VarChar(191)
+  relationship   String?   @db.VarChar(191)
+  tone           String?   @db.VarChar(191)
   prompt         String    @db.Text
   status         String    @default("PENDING") @db.VarChar(32)
   adminNotes     String?   @db.Text
@@ -385,11 +390,17 @@ model CommunityResponse {
 }
 
 model SystemSetting {
-  id                 String   @id @default("platform") @db.VarChar(64)
-  defaultPrintingFee Decimal  @default(7.00) @db.Decimal(10, 2)
-  orderFeedbackEmail Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                         String   @id @default("platform") @db.VarChar(64)
+  defaultPrintingFee         Decimal  @default(7.00) @db.Decimal(10, 2)
+  orderFeedbackEmail         Boolean  @default(true)
+  automaticSmsEnabled        Boolean  @default(true)
+  smsPoetryRequestReceived   Boolean  @default(true)
+  smsPoetryRequestCompleted  Boolean  @default(true)
+  smsCardOrderUpdates        Boolean  @default(true)
+  smsChallengeReminders      Boolean  @default(true)
+  smsSubscriptionNotifications Boolean @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   @@map("systemsetting")
 }

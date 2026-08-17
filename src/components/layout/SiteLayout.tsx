@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 
 const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()
@@ -9,12 +9,9 @@ export function SiteLayout(){
   const [accountOpen,setAccountOpen]=useState(false)
   const {user,logout}=useAuth()
   const navigate=useNavigate()
-  const location=useLocation()
-  const isHome=location.pathname==='/'
 
   async function signOut(){await logout();setAccountOpen(false);navigate('/login')}
 
-  if (isHome) {
     return (
       <div className="flex min-h-screen flex-col font-sans bg-ivory text-charcoal">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-7 border-b border-[rgba(57,47,39,0.12)] bg-[rgba(252,250,247,0.9)] px-16 py-4 max-[760px]:gap-3.5 max-[760px]:px-4.5 max-[760px]:py-4">
@@ -94,10 +91,4 @@ export function SiteLayout(){
         </footer>
       </div>
     )
-  }
-
-  return <div className="hs-site"><header className="reference-header"><Link to="/" className="reference-brand" onClick={()=>setOpen(false)}><div className="brand-logo"><img src="/assets/branding/laurentine-logo.png" className="brand-logo-icon" alt="Laurentine"/><div className="brand-wordmark"><span>Laurentine</span><sup className="brand-tm">TM</sup></div></div></Link>
-    <nav className="reference-center-nav" aria-label="Browse navigation"><NavLink to="/browse">Browse</NavLink><NavLink to="/love-notes">Categories</NavLink>{user&&<><NavLink to="/library">Library</NavLink><NavLink to="/challenges">Challenges</NavLink><NavLink to="/forum">Forum</NavLink><NavLink to="/orders">Orders</NavLink></>}</nav>
-    <div className="reference-auth-nav">{user?<div className="account-menu-wrap"><button className="header-avatar" onClick={()=>setAccountOpen(v=>!v)}>{user.profileImageUrl?<img src={user.profileImageUrl} alt=""/>:initials(user.fullName)}</button>{accountOpen&&<div className="account-popover"><Link to="/profile" onClick={()=>setAccountOpen(false)}>Profile &amp; Settings</Link><button onClick={signOut}>Logout &nbsp; ⇥</button></div>}</div>:<><Link to="/login">Sign In</Link><Link to="/register" className="start-access-button">Start Access</Link></>}<button className="reference-menu-button" type="button" aria-label="Toggle menu" onClick={()=>setOpen(v=>!v)}><span/><span/><span/></button></div>
-    {open&&<nav className="reference-mobile-menu"><NavLink to="/browse" onClick={()=>setOpen(false)}>Browse</NavLink><NavLink to="/love-notes" onClick={()=>setOpen(false)}>Categories</NavLink>{user?<><NavLink to="/library" onClick={()=>setOpen(false)}>Library</NavLink><NavLink to="/challenges" onClick={()=>setOpen(false)}>Challenges</NavLink><NavLink to="/forum" onClick={()=>setOpen(false)}>Forum</NavLink><NavLink to="/orders" onClick={()=>setOpen(false)}>Orders</NavLink><div className="reference-mobile-divider"/><NavLink to="/profile" onClick={()=>setOpen(false)}>Profile &amp; Settings</NavLink><button onClick={signOut}>Logout</button></>:<><NavLink to="/login" onClick={()=>setOpen(false)}>Sign In</NavLink><NavLink to="/register" onClick={()=>setOpen(false)}>Start Access</NavLink></>}</nav>}</header><Outlet/><footer className="reference-footer"><div className="reference-footer-brand"><div className="brand-logo"><img src="/assets/branding/laurentine-logo.png" className="footer-brand brand-logo-icon" alt="Laurentine"/><div className="footer-brand brand-wordmark"><span>Laurentine</span><sup className="footer-brand brand-tm">TM</sup></div></div><p>Poetry that speaks. Moments that last.</p></div><nav className="reference-footer-nav"><Link to="/about">About</Link><a href="mailto:support@laurentine.co">✉</a><a href="#">◎</a><a href="#">●</a></nav></footer></div>
 }
