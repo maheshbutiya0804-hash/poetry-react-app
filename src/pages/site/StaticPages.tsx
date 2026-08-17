@@ -32,8 +32,8 @@ function collectionMarkup(collections: HomeCollection[], loading: boolean, error
   }
 
   const tiles = collections.map((collection) => `
-    <div class="min-w-0 flex-[0_0_250px] gap-[20px]">
-      <a class="block w-full max-w-[15.625rem]" href="/love-notes/${encodeURIComponent(collection.id)}">
+    <div class="home-collection-slide">
+      <a href="/love-notes/${encodeURIComponent(collection.id)}">
         <article class="relative w-full overflow-hidden select-none rounded-[10px] ring-1 ring-[rgba(255,255,255,0.14)] card-tile-size before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(17,14,10,0.10)_100%)] before:content-[''] bg-[radial-gradient(circle_at_20%_14%,rgba(255,255,255,0.08)_0%,transparent_18%),radial-gradient(circle_at_80%_78%,rgba(182,108,96,0.20)_0%,transparent_28%),linear-gradient(135deg,#352d5b_0%,#4b416f_38%,#6d5672_68%,#9d6a61_100%)] text-white" style="--card-preview-color:#fffaf3;--card-preview-shadow:0 1px 2px rgba(20,16,12,0.18);--card-title-color:#fffaf3;background-image:radial-gradient(circle at 19% 33%,rgba(234,200,189,0.12) 0%,transparent 24%),radial-gradient(circle at 86% 77%,rgba(255,255,255,0.07) 0%,transparent 28%),linear-gradient(128deg,rgb(65,39,43) 0%,rgb(122,80,84) 46%,rgb(162,118,110) 100%);color:rgb(255,250,243);">
           <div aria-label="Locked preview" class="absolute right-3.5 top-3.5 z-[3] inline-flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(251,248,244,0.92)] text-forest shadow-[0_6px_14px_rgba(23,57,47,0.12)]">
             <svg aria-hidden="true" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
@@ -52,19 +52,20 @@ function collectionMarkup(collections: HomeCollection[], loading: boolean, error
     <section class="border-b border-[rgba(74,60,47,0.12)] py-16 max-[760px]:py-11">
       <div class="mx-auto w-[min(1360px,calc(100%_-_56px))] max-[760px]:w-[min(100%,calc(100%_-_24px))]">
         <section class="flex flex-col gap-5">
-          <div class="flex items-center justify-between gap-6">
-            <div>
-              <h2 class="font-serif text-[34px] font-semibold leading-none tracking-[-0.02em] text-charcoal">Collections</h2>
-              <p class="mt-2 max-w-[520px] text-sm leading-6 text-muted">Explore Laurentine Love Notes by collection.</p>
-            </div>
-            <div class="shrink-0">
-              <button type="button" data-home-collections-next aria-label="Scroll collections right" title="Scroll collections" class="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#17392f] text-[#f7f3ec] shadow-[0_12px_24px_rgba(23,57,47,0.12)] transition hover:-translate-y-px hover:bg-[#102f28] focus:outline-none focus:ring-2 focus:ring-[#17392f]/25 focus:ring-offset-2 focus:ring-offset-[#f6f2ec]">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
-              </button>
-            </div>
+          <div>
+            <h2 class="font-serif text-[34px] font-semibold leading-none tracking-[-0.02em] text-charcoal">Collections</h2>
+            <p class="mt-2 max-w-[520px] text-sm leading-6 text-muted">Explore Laurentine Love Notes by collection.</p>
           </div>
-          <div data-home-collections-scroll class="overflow-x-hidden overflow-y-hidden pb-2 [scrollbar-width:thin] scroll-smooth">
-            <div class="flex touch-pan-y gap-8 w-max min-w-full">${tiles}</div>
+          <div data-home-collections-scroll class="home-collections-scroller">
+            <div class="home-collections-track">${tiles}</div>
+          </div>
+          <div class="home-collections-controls">
+            <button type="button" data-home-collections-prev aria-label="Scroll collections left" title="Previous collection" class="home-collections-arrow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <button type="button" data-home-collections-next aria-label="Scroll collections right" title="Next collection" class="home-collections-arrow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
           </div>
         </section>
       </div>
@@ -109,8 +110,11 @@ function LoggedInHome({ collections, loading, error }: { collections: HomeCollec
 
       <section className="px-16 pb-12 pt-10 max-[1180px]:px-7 max-[760px]:px-[18px] max-[760px]:pb-10">
         <section className="flex flex-col gap-5">
-          <div className="flex items-center justify-between gap-6"><div><h2 className="font-serif text-[34px] font-semibold leading-none tracking-[-0.02em] text-charcoal">Collections</h2><p className="mt-2 max-w-[520px] text-sm leading-6 text-muted">Browse Laurentine notes for every meaningful moment.</p></div><div className="shrink-0"><Link aria-label="View all collections" title="View all collections" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#17392f] text-[#f7f3ec] shadow-[0_12px_24px_rgba(23,57,47,0.12)] transition hover:-translate-y-px hover:bg-[#102f28]" to="/love-notes"><svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg></Link></div></div>
-          {loading ? <p className="text-sm text-[#7d746b]">Loading collections…</p> : error ? <p className="text-sm text-[#7d746b]">{error}</p> : <div className="overflow-x-auto overflow-y-hidden pb-2 scroll-smooth"><div className="flex touch-pan-y gap-8 w-max min-w-full">{collections.map(collection=><div key={collection.id} className="min-w-0 flex-[0_0_250px] gap-[20px]"><Link className="block w-full max-w-[15.625rem]" to={`/love-notes/${encodeURIComponent(collection.id)}`}><article className="relative w-full overflow-hidden select-none rounded-[10px] ring-1 ring-[rgba(255,255,255,0.14)] card-tile-size before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(17,14,10,0.10)_100%)] before:content-[''] text-white" style={{backgroundImage:'radial-gradient(circle at 19% 33%,rgba(234,200,189,0.12) 0%,transparent 24%),radial-gradient(circle at 86% 77%,rgba(255,255,255,0.07) 0%,transparent 28%),linear-gradient(128deg,rgb(65,39,43) 0%,rgb(122,80,84) 46%,rgb(162,118,110) 100%)'}}><div aria-label="Locked preview" className="absolute right-3.5 top-3.5 z-[3] inline-flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(251,248,244,0.92)] text-forest shadow-[0_6px_14px_rgba(23,57,47,0.12)]"><svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><div className="absolute inset-0 z-[1] flex flex-col p-[16px_16px_18px]"><div className="flex max-w-[15ch] flex-1 flex-col justify-between gap-3"><h3 className="m-0 font-serif text-4xl font-semibold leading-[0.98]">{collection.name}</h3><p className="m-0 font-serif text-md leading-[1.28] md:text-lg">{collection.description}</p></div></div></article></Link></div>)}</div></div>}
+          <div><h2 className="font-serif text-[34px] font-semibold leading-none tracking-[-0.02em] text-charcoal">Collections</h2><p className="mt-2 max-w-[520px] text-sm leading-6 text-muted">Browse Laurentine notes for every meaningful moment.</p></div>
+          {loading ? <p className="text-sm text-[#7d746b]">Loading collections…</p> : error ? <p className="text-sm text-[#7d746b]">{error}</p> : <>
+            <div data-home-collections-scroll className="home-collections-scroller"><div className="home-collections-track">{collections.map(collection=><div key={collection.id} className="home-collection-slide"><Link to={`/love-notes/${encodeURIComponent(collection.id)}`}><article className="relative w-full overflow-hidden select-none rounded-[10px] ring-1 ring-[rgba(255,255,255,0.14)] card-tile-size before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(17,14,10,0.10)_100%)] before:content-[''] text-white" style={{backgroundImage:'radial-gradient(circle at 19% 33%,rgba(234,200,189,0.12) 0%,transparent 24%),radial-gradient(circle at 86% 77%,rgba(255,255,255,0.07) 0%,transparent 28%),linear-gradient(128deg,rgb(65,39,43) 0%,rgb(122,80,84) 46%,rgb(162,118,110) 100%)'}}><div aria-label="Locked preview" className="absolute right-3.5 top-3.5 z-[3] inline-flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(251,248,244,0.92)] text-forest shadow-[0_6px_14px_rgba(23,57,47,0.12)]"><svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><div className="absolute inset-0 z-[1] flex flex-col p-[16px_16px_18px]"><div className="flex max-w-[15ch] flex-1 flex-col justify-between gap-3"><h3 className="m-0 font-serif text-4xl font-semibold leading-[0.98]">{collection.name}</h3><p className="m-0 font-serif text-md leading-[1.28] md:text-lg">{collection.description}</p></div></div></article></Link></div>)}</div></div>
+            <div className="home-collections-controls"><button type="button" data-home-collections-prev aria-label="Scroll collections left" title="Previous collection" className="home-collections-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><button type="button" data-home-collections-next aria-label="Scroll collections right" title="Next collection" className="home-collections-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+          </>}
         </section>
       </section>
 
@@ -146,20 +150,55 @@ export function HomePage() {
   useEffect(() => {
     if (collectionsLoading || collectionsError || !collections.length) return
     const nextButton = document.querySelector<HTMLButtonElement>('[data-home-collections-next]')
+    const prevButton = document.querySelector<HTMLButtonElement>('[data-home-collections-prev]')
     const scroller = document.querySelector<HTMLElement>('[data-home-collections-scroll]')
-    if (!nextButton || !scroller) return
+    if (!nextButton || !prevButton || !scroller) return
 
-    const onNext = () => {
-      const tile = scroller.querySelector<HTMLElement>('[class*="flex-[0_0_250px]"]')
-      const gap = 32
-      const step = (tile?.offsetWidth ?? 250) + gap
-      const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 8
-      scroller.scrollTo({ left: atEnd ? 0 : Math.min(scroller.scrollLeft + step, scroller.scrollWidth), behavior: 'smooth' })
+    const getSlides = () => Array.from(scroller.querySelectorAll<HTMLElement>('.home-collection-slide'))
+    const getCurrentIndex = () => {
+      const slides = getSlides()
+      if (!slides.length) return 0
+      let nearest = 0
+      let distance = Number.POSITIVE_INFINITY
+      slides.forEach((slide, index) => {
+        const delta = Math.abs(slide.offsetLeft - scroller.scrollLeft)
+        if (delta < distance) { distance = delta; nearest = index }
+      })
+      return nearest
     }
+    const scrollToIndex = (index: number) => {
+      const slides = getSlides()
+      if (!slides.length) return
+      const normalized = (index + slides.length) % slides.length
+      scroller.scrollTo({ left: slides[normalized].offsetLeft, behavior: 'smooth' })
+    }
+    const move = (direction: 1 | -1) => {
+      const slides = getSlides()
+      if (!slides.length) return
+      const visibleCount = window.matchMedia('(max-width: 760px)').matches ? 1 : 5
+      const maxStartIndex = Math.max(0, slides.length - visibleCount)
+      const current = Math.min(getCurrentIndex(), maxStartIndex)
+      const nextIndex = direction === 1
+        ? (current >= maxStartIndex ? 0 : current + 1)
+        : (current <= 0 ? maxStartIndex : current - 1)
+      scrollToIndex(nextIndex)
+    }
+    const onNext = () => move(1)
+    const onPrev = () => move(-1)
 
     nextButton.addEventListener('click', onNext)
-    return () => nextButton.removeEventListener('click', onNext)
-  }, [collections, collectionsLoading, collectionsError])
+    prevButton.addEventListener('click', onPrev)
+
+    const interval = window.setInterval(() => {
+      if (!document.hidden) move(1)
+    }, 4000)
+
+    return () => {
+      window.clearInterval(interval)
+      nextButton.removeEventListener('click', onNext)
+      prevButton.removeEventListener('click', onPrev)
+    }
+  }, [collections, collectionsLoading, collectionsError, user])
 
   useEffect(() => {
     const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls^="landing-faq-answer-"]'))

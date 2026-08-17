@@ -445,6 +445,9 @@ export type AdminPoetryRequest = {
   category: string
   collectionId?: string | null
   occasion?: string | null
+  recipientName?: string | null
+  relationship?: string | null
+  tone?: string | null
   prompt: string
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
   adminNotes?: string | null
@@ -686,6 +689,14 @@ export async function getLibrary():Promise<SavedLibraryCard[]>{ return authJson(
 export async function saveCardToLibrary(cardId:string):Promise<void>{ await authJson(`/library/${encodeURIComponent(cardId)}`,{method:'POST'}) }
 export async function removeCardFromLibrary(cardId:string):Promise<void>{ const r=await apiFetch(`${API_BASE}/library/${encodeURIComponent(cardId)}`,{method:'DELETE'}); if(!r.ok) throw new Error('Unable to remove saved card') }
 export async function setLibraryCardUsed(cardId:string,used:boolean):Promise<void>{ await authJson(`/library/${encodeURIComponent(cardId)}/used`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({used})}) }
+
+export type PoetryRequestStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+export type UserPoetryRequest = {
+  id:string; userId?:string|null; requesterName:string; requesterEmail:string; category:string; collectionId?:string|null; occasion?:string|null; recipientName?:string|null; relationship?:string|null; tone?:string|null; prompt:string; status:PoetryRequestStatus; adminNotes?:string|null; completedAt?:string|null; createdAt:string; updatedAt:string
+}
+export type CreatePoetryRequestInput = { occasion:string; recipientName:string; relationship:string; description:string; tone:string }
+export async function getMyPoetryRequests():Promise<UserPoetryRequest[]>{ return authJson('/poetry-requests') }
+export async function createPoetryRequest(input:CreatePoetryRequestInput):Promise<UserPoetryRequest>{ return authJson('/poetry-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}) }
 
 export type PhysicalOrderPricing={cardPrice:number;printingFee:number}
 export type PhysicalOrderInput={cardId:string;quantity:number;personalizationRecipient:string;personalizationSender:string;recipientName:string;address1:string;address2?:string;city:string;state:string;postalCode:string;country:string;shippingNote?:string}

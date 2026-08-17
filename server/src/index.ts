@@ -811,6 +811,50 @@ async function hasActiveSubscription(userId: string) {
   return Boolean(subscription?.status === 'ACTIVE' && (!subscription.currentPeriodEnd || subscription.currentPeriodEnd > new Date()))
 }
 
+const poetryRequestCreateSchema = z.object({
+  occasion: z.string().trim().min(1).max(191),
+  recipientName: z.string().trim().min(1).max(191),
+  relationship: z.string().trim().min(1).max(191),
+  description: z.string().trim().min(3).max(10000),
+  tone: z.string().trim().min(1).max(191),
+})
+
+app.get('/poetry-requests', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to access poetry requests.' })
+  const requests = await prisma.poetryRequest.findMany({
+    where: { userId: auth.id },
+    orderBy: { createdAt: 'desc' },
+  })
+  res.json(requests)
+})
+
+app.post('/poetry-requests', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to request a custom poem.' })
+  const parsed = poetryRequestCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Please complete all poetry request fields.', issues: parsed.error.issues })
+  const user = await prisma.user.findUnique({ where: { id: auth.id }, select: { fullName: true, email: true } })
+  if (!user) return res.status(404).json({ message: 'User not found.' })
+  const request = await prisma.poetryRequest.create({
+    data: {
+      userId: auth.id,
+      requesterName: user.fullName,
+      requesterEmail: user.email,
+      category: parsed.data.occasion,
+      occasion: parsed.data.occasion,
+      recipientName: parsed.data.recipientName,
+      relationship: parsed.data.relationship,
+      tone: parsed.data.tone,
+      prompt: parsed.data.description,
+      status: 'PENDING',
+    },
+  })
+  res.status(201).json(request)
+})
+
 app.get('/library', async (req, res) => {
   const auth = await getAuthenticatedUser(req)
   if (!auth) return res.status(401).json({ message: 'Authentication required.' })

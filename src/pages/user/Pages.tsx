@@ -1,7 +1,9 @@
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CategorySection } from '../../components/CategorySection'
 import { categories } from '../../data/cards'
 import { EmptyState, MiniCardGrid, PageHeader, Panel, Stat } from '../../components/app/PagePrimitives'
+import { createPoetryRequest, getProfile } from '../../services/api'
 
 export function LandingSecondaryPage() { return <div className="content-page"><PageHeader eyebrow="Discover" title="Poetry made personal." copy="Browse meaningful cards, save favourites, and add your own message."/><MiniCardGrid/><Panel title="Browse by feeling"><div className="chip-row">{['Love','Birthday','Anniversary','Gratitude','Friendship','Family'].map(x=><Link to={`/category/${x.toLowerCase()}`} className="chip" key={x}>{x}</Link>)}</div></Panel></div> }
 export function SearchPage() { return <div className="content-page"><PageHeader eyebrow="Library" title="Find the right words." copy="Search poems by occasion, feeling, or a phrase you remember."/><Panel><div className="search-bar"><input placeholder="Search poetry cards"/><button className="button">Search</button></div><div className="filter-row">{['All','Love','Birthday','Anniversary','Family'].map(x=><button key={x}>{x}</button>)}</div></Panel><MiniCardGrid/></div> }
@@ -27,7 +29,78 @@ export function AddForumPostPage(){return <div className="content-page narrow-pa
 export function ForumPostPage(){return <div className="content-page narrow-page"><PageHeader eyebrow="Community post" title="The words we keep returning to." copy="Posted by Maya · 2 hours ago"/><Panel><p className="article-copy">Some poems stay with us because they arrive at exactly the right moment. This thread is a place to share those lines and the memories attached to them.</p></Panel><Panel title="Replies"><PostList compact/></Panel></div>}
 function PostList({compact=false}:{compact?:boolean}){return <div className="post-list">{['The words we keep returning to','A card that changed an ordinary day','Poetry for difficult conversations'].slice(0,compact?2:3).map((x,i)=><Link to="/forum/post/1" className="post-row" key={x}><div className="avatar">{['M','A','J'][i]}</div><div><h3>{x}</h3><p>Thoughtful reflections from the Verse & Feeling community.</p></div><span>{12-i*3} replies</span></Link>)}</div>}
 export function PoetryRequestsPage(){return <div className="content-page"><PageHeader eyebrow="Custom poetry" title="Your poetry requests." copy="Track submitted requests and their current status." action={<Link className="button" to="/poetry-requests/new">New Request</Link>}/><RequestTable/></div>}
-export function AddPoetryRequestPage(){return <div className="content-page narrow-page"><PageHeader eyebrow="Custom poetry" title="Request a poem." copy="Tell us about the moment, person, and feeling."/><Panel><label className="field">Occasion<select><option>Birthday</option><option>Anniversary</option><option>Love</option></select></label><label className="field">Details<textarea rows={9}/></label><button className="button">Submit request</button></Panel></div>}
+export function AddPoetryRequestPage(){
+  const occasions=['Anniversary','Happy Birthday','Love',"Mother's Day","Father's Day",'Everyday','Apology','Anchored in Grace','Christmas']
+  const suggestions=['ROMANTIC','TENDER','JOYFUL','REFLECTIVE','GRATEFUL','COMFORTING','CELEBRATORY']
+  const [occasion,setOccasion]=useState('Anniversary')
+  const [tone,setTone]=useState('')
+  const [recipientName,setRecipientName]=useState('')
+  const [relationship,setRelationship]=useState('')
+  const [description,setDescription]=useState('')
+  const [checking,setChecking]=useState(true)
+  const [submitting,setSubmitting]=useState(false)
+  const [error,setError]=useState('')
+  const navigate=useNavigate()
+
+  useEffect(()=>{
+    let alive=true
+    getProfile().then(profile=>{
+      const active=profile.subscription?.status==='ACTIVE' && (!profile.subscription.currentPeriodEnd || new Date(profile.subscription.currentPeriodEnd)>new Date())
+      if(!active) navigate('/library?tab=requests',{replace:true})
+    }).catch(()=>navigate('/library?tab=requests',{replace:true})).finally(()=>{if(alive)setChecking(false)})
+    return()=>{alive=false}
+  },[navigate])
+
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault(); setError('')
+    if(!recipientName.trim()||!relationship.trim()||!description.trim()||!tone.trim()){setError('Please complete all fields before submitting.');return}
+    setSubmitting(true)
+    try{
+      await createPoetryRequest({occasion,recipientName:recipientName.trim(),relationship:relationship.trim(),description:description.trim(),tone:tone.trim()})
+      navigate('/library?tab=requests',{replace:true})
+    }catch(err){ setError(err instanceof Error?err.message:'Unable to submit your poetry request.'); setSubmitting(false) }
+  }
+
+  if(checking)return <main className="flex flex-1 items-center justify-center bg-[#f7f3ed] text-muted">Checking your subscription…</main>
+
+  return <main className="flex flex-1 flex-col">
+    <div className="bg-[#f7f3ed]">
+      <section className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-14 max-[760px]:pt-10">
+        <div className="mx-auto w-full pb-2">
+          <Link className="mb-4 inline-flex cursor-pointer items-center gap-2.5 text-[15px] text-[#5a5148] transition hover:text-forest" to="/library?tab=requests">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+            Back to Requests
+          </Link>
+        </div>
+        <h1 className="m-0 font-serif text-[clamp(2.55rem,5vw,4rem)] font-semibold leading-[0.95] tracking-[-0.035em] text-[#2f2a25]">A poem, written just for you</h1>
+        <p className="mt-4 max-w-[560px] text-[1rem] leading-7 text-[#776d62]">Tell us your story, and we will turn it into something timeless.</p>
+      </section>
+
+      <form onSubmit={submit} className="mx-auto grid w-full max-w-[900px] gap-12 px-6 pb-16">
+        <section className="grid gap-4">
+          <div><h2 className="m-0 font-serif text-[2rem] font-semibold leading-none tracking-[-0.02em] text-[#2f2a25]">What is this for?</h2></div>
+          <div className="flex flex-wrap gap-2.5">
+            {occasions.map(item=><button key={item} type="button" onClick={()=>setOccasion(item)} className={`min-h-11 rounded-full border px-4 text-[0.92rem] font-semibold transition ${occasion===item?'border-[#17392f] bg-[#17392f] text-[#f7f4ef] shadow-[0_10px_22px_rgba(23,57,47,0.12)]':'border-[rgba(57,47,39,0.12)] bg-[#f9f5ef] text-[#5f554b] hover:-translate-y-px hover:border-[rgba(23,57,47,0.26)] hover:text-[#17392f]'}`}>{item}</button>)}
+          </div>
+        </section>
+
+        <section className="grid gap-4">
+          <div><h2 className="m-0 font-serif text-[2rem] font-semibold leading-none tracking-[-0.02em] text-[#2f2a25]">About the person</h2></div>
+          <div className="grid grid-cols-2 gap-4 max-[760px]:grid-cols-1">
+            <input id="name" value={recipientName} onChange={e=>setRecipientName(e.target.value)} className="min-h-[50px] w-full rounded-[10px] border border-forest/15 bg-white px-4 text-base text-charcoal outline-none transition placeholder:text-charcoal/35 focus:border-forest/45 focus:ring-4 focus:ring-forest/10" placeholder="Name" name="recipientName"/>
+            <input id="relationship" value={relationship} onChange={e=>setRelationship(e.target.value)} className="min-h-[50px] w-full rounded-[10px] border border-forest/15 bg-white px-4 text-base text-charcoal outline-none transition placeholder:text-charcoal/35 focus:border-forest/45 focus:ring-4 focus:ring-forest/10" placeholder="Relationship" name="relationship"/>
+          </div>
+        </section>
+
+        <section className="grid gap-4"><div><h2 className="m-0 font-serif text-[2rem] font-semibold leading-none tracking-[-0.02em] text-[#2f2a25]">Tell us what you feel</h2><p className="mt-2 text-[0.94rem] leading-6 text-[#776d62]">Write freely. Even a few words are enough.</p></div><textarea id="share-your-story" value={description} onChange={e=>setDescription(e.target.value)} className="min-h-[160px] w-full resize-y rounded-[12px] border border-forest/15 bg-white px-4 py-3 text-base leading-7 text-charcoal outline-none transition placeholder:text-charcoal/35 focus:border-forest/45 focus:ring-4 focus:ring-forest/10" placeholder="Share your story, memory, or feeling..." name="description"/></section>
+
+        <section className="grid gap-4"><div><h2 className="m-0 font-serif text-[2rem] font-semibold leading-none tracking-[-0.02em] text-[#2f2a25]">Tone of the poem</h2><p className="mt-2 text-[0.94rem] leading-6 text-[#776d62]">Describe the tone you want, like soft, romantic, reflective, or heartfelt.</p></div><div className="grid gap-3"><input id="tone" value={tone} onChange={e=>setTone(e.target.value)} className="min-h-[50px] w-full rounded-[10px] border border-forest/15 bg-white px-4 text-base text-charcoal outline-none transition placeholder:text-charcoal/35 focus:border-forest/45 focus:ring-4 focus:ring-forest/10" placeholder="Enter the tone of the poem" name="tone"/><div className="flex flex-wrap items-center gap-2"><span className="mr-1 text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-[#8a7d70]">Suggestions:</span>{suggestions.map(item=><button key={item} type="button" onClick={()=>setTone(item.charAt(0)+item.slice(1).toLowerCase())} className="inline-flex min-h-9 items-center rounded-full border border-[rgba(57,47,39,0.12)] bg-[#f9f4ee] px-3 text-[0.78rem] font-bold text-[#17392f] transition hover:-translate-y-px hover:bg-[#fffaf4] focus:outline-none focus:ring-2 focus:ring-forest/25">{item}</button>)}</div></div></section>
+
+        <div className="grid gap-4"><div>{error&&<p className="mb-3 text-sm font-medium text-red-700">{error}</p>}<button type="submit" disabled={submitting} className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full bg-forest px-7 text-[0.95rem] font-bold text-ivory transition hover:bg-forest/90 disabled:cursor-not-allowed disabled:opacity-60"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>{submitting?'Submitting…':'Request Your Poem'}</button><p className="mt-3 text-[0.86rem] leading-6 text-[#776d62]">Your request will be saved to your poetry request history.</p></div></div>
+      </form>
+    </div>
+  </main>
+}
 export function PoetryRequestDetailPage(){return <div className="content-page"><PageHeader eyebrow="Request #PR-1042" title="Anniversary poem." copy="Submitted 28 April · In progress"/><div className="two-column"><Panel title="Request details"><p className="article-copy">A warm anniversary poem for a couple celebrating twenty years together.</p></Panel><Panel title="Status"><div className="timeline"><span className="done">Submitted</span><span className="active">In progress</span><span>Review</span><span>Complete</span></div></Panel></div></div>}
 function RequestTable(){return <div className="data-table">{[['PR-1042','Anniversary','In progress'],['PR-1038','Birthday','Completed'],['PR-1029','Love','Review']].map(r=><Link to="/poetry-requests/1" className="data-row" key={r[0]}><strong>{r[0]}</strong><span>{r[1]}</span><span className="status-pill">{r[2]}</span><span>View →</span></Link>)}</div>}
 export function OrdersPage(){return <div className="content-page"><PageHeader eyebrow="Purchases" title="My orders." copy="View printed-card orders and delivery progress."/><div className="data-table">{[['VF-2091','A Year More You','$16.00','Shipped'],['VF-2074','Still Choosing You','$12.00','Delivered']].map(r=><Link to="/orders/1" className="data-row" key={r[0]}>{r.map(x=><span key={x}>{x}</span>)}<span>View →</span></Link>)}</div></div>}

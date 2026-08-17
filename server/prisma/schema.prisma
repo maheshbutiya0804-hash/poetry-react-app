@@ -256,6 +256,9 @@ model PoetryRequest {
   collectionId   String?   @db.VarChar(191)
   collection     Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   occasion       String?   @db.VarChar(191)
+  recipientName  String?   @db.VarChar(191)
+  relationship   String?   @db.VarChar(191)
+  tone           String?   @db.VarChar(191)
   prompt         String    @db.Text
   status         String    @default("PENDING") @db.VarChar(32)
   adminNotes     String?   @db.Text
