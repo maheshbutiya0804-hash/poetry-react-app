@@ -14,6 +14,7 @@ export type LoveNoteCard = {
   collectionId: string
   categoryId?: string | null
   categoryName?: string | null
+  collectionName?: string | null
   title: string
   excerpt: string
   previewImageUrl: string

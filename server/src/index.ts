@@ -535,6 +535,33 @@ app.get('/cards/:cardId/pdf', async (req, res) => {
   createReadStream(absolute).pipe(res)
 })
 
+app.get('/cards/search', async (req, res) => {
+  const query = String(req.query.q ?? '').trim().slice(0, 120)
+  if (!query) return res.json([])
+
+  try {
+    const cards = await prisma.card.findMany({
+      where: {
+        isPublished: true,
+        OR: [
+          { title: { contains: query } },
+          { description: { contains: query } },
+          { poemText: { contains: query } },
+          { category: { is: { name: { contains: query } } } },
+          { collection: { is: { name: { contains: query } } } },
+        ],
+      },
+      orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
+      take: 30,
+      select: publicCardSelect,
+    })
+    res.json(cards.map(card => cardDto(req, card)))
+  } catch (error) {
+    console.error('GET /cards/search failed:', error)
+    res.status(500).json({ message: 'Could not search cards.' })
+  }
+})
+
 app.get('/cards/:cardId', async (req, res) => {
   const card = await prisma.card.findFirst({
     where: { id: req.params.cardId, isPublished: true },

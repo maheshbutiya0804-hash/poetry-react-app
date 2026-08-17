@@ -165,6 +165,16 @@ export async function getCard(cardId: string): Promise<LoveNoteCard> {
   return response.json()
 }
 
+export async function searchCards(query: string, signal?: AbortSignal): Promise<LoveNoteCard[]> {
+  const q = query.trim()
+  if (!q) return []
+  const params = new URLSearchParams({ q })
+  const response = await apiFetch(`${API_BASE}/cards/search?${params.toString()}`, { signal })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to search cards')
+  return Array.isArray(body) ? body : []
+}
+
 export async function adminCreateCard(formData: FormData): Promise<LoveNoteCard> {
   const response = await apiFetch(`${API_BASE}/admin/cards`, { method: 'POST', body: formData })
   const body = await response.json().catch(() => ({}))
