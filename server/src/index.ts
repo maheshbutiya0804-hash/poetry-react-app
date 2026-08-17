@@ -127,7 +127,11 @@ async function sendAutomaticSmsToUser(userId: string | null | undefined, kind: A
 async function sendAutomaticSmsBroadcast(kind: AutomaticSmsKind, message: string) {
   if (!(await isAutomaticSmsEnabled(kind))) return { skipped: true as const, sentCount: 0, failedCount: 0 }
   const subscriptions = await prisma.subscription.findMany({
-    where: { status: 'ACTIVE', user: { status: 'ACTIVE', phone: { not: null } }, OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }] },
+    where: {
+      status: 'ACTIVE',
+      user: { status: 'ACTIVE', phone: { not: null }, ...(kind === 'CHALLENGE_REMINDERS' ? { challengeSmsEnabled: true } : {}) },
+      OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+    },
     select: { user: { select: { id: true, phone: true } } },
   })
   const recipients = subscriptions.map(row => ({ userId: row.user.id, phone: normalizeE164Phone(row.user.phone) })).filter(row => isValidE164Phone(row.phone))
@@ -1070,6 +1074,51 @@ app.post('/community', async (req, res) => {
   })
 })
 
+const challengePreferenceSchema = z.object({
+  challengeEmailEnabled: z.boolean(),
+  challengeSmsEnabled: z.boolean(),
+})
+
+app.get('/challenges/current', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to access monthly challenges.' })
+
+  const now = new Date()
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  const [challenge, user] = await Promise.all([
+    prisma.challenge.findFirst({
+      where: { status: 'PUBLISHED', challengeMonth: { gte: monthStart, lt: nextMonth } },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      include: { reminders: { where: { isActive: true }, orderBy: { dayOfMonth: 'asc' } } },
+    }),
+    prisma.user.findUnique({ where: { id: auth.id }, select: { challengeEmailEnabled: true, challengeSmsEnabled: true } }),
+  ])
+
+  res.json({
+    challenge: challenge ? challengeDto(req, challenge) : null,
+    preferences: {
+      challengeEmailEnabled: user?.challengeEmailEnabled ?? true,
+      challengeSmsEnabled: user?.challengeSmsEnabled ?? true,
+    },
+  })
+})
+
+app.patch('/challenges/preferences', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to update challenge notifications.' })
+  const parsed = challengePreferenceSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid challenge notification preferences.' })
+  const user = await prisma.user.update({
+    where: { id: auth.id },
+    data: parsed.data,
+    select: { challengeEmailEnabled: true, challengeSmsEnabled: true },
+  })
+  res.json({ preferences: user })
+})
+
 // Daily scheduler hook for challenge SMS reminders. Configure your host/cron service to call this once per day.
 app.post('/internal/challenge-reminders/run', async (req, res) => {
   const expected = process.env.SMS_CRON_SECRET?.trim()
@@ -1833,6 +1882,9 @@ app.post('/admin/challenges', upload.single('image'), async (req, res) => {
       },
       include: { reminders: { orderBy: { dayOfMonth: 'asc' } } },
     })
+    if (challenge.status === 'PUBLISHED') {
+      void sendAutomaticSmsBroadcast('CHALLENGE_REMINDERS', `Laurentine: A new monthly challenge, “${challenge.title}”, is ready. Visit Challenge Notes to take part.`).catch(error => console.error('Challenge release SMS failed:', error))
+    }
     res.status(201).json(challengeDto(req, challenge))
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ message: 'Invalid challenge data.', issues: error.issues })
@@ -1854,6 +1906,9 @@ app.patch('/admin/challenges/:challengeId/status', async (req, res) => {
       },
       include: { reminders: { orderBy: { dayOfMonth: 'asc' } } },
     })
+    if (parsed.data.status === 'PUBLISHED') {
+      void sendAutomaticSmsBroadcast('CHALLENGE_REMINDERS', `Laurentine: A new monthly challenge, “${challenge.title}”, is ready. Visit Challenge Notes to take part.`).catch(error => console.error('Challenge release SMS failed:', error))
+    }
     res.json(challengeDto(req, challenge))
   } catch {
     res.status(404).json({ message: 'Challenge not found' })

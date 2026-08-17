@@ -772,3 +772,40 @@ export async function getCommunityPosts(params:{search?:string; collectionId?:st
 export async function createCommunityPost(input:{cardId:string;title:string;body:string;anonymous:boolean}):Promise<CommunityPost>{
   return authJson<CommunityPost>('/community',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})
 }
+
+
+export type UserChallengePreferences = {
+  challengeEmailEnabled: boolean
+  challengeSmsEnabled: boolean
+}
+
+export type UserMonthlyChallenge = {
+  id: string
+  title: string
+  challengeMonth: string
+  overview: string
+  goal: string
+  howToComplete: string
+  relationshipBenefit: string
+  imageUrl?: string | null
+  status: string
+  publishedAt?: string | null
+}
+
+export type CurrentChallengeResponse = {
+  challenge: UserMonthlyChallenge | null
+  preferences: UserChallengePreferences
+}
+
+export async function getCurrentChallenge(): Promise<CurrentChallengeResponse> {
+  return authJson<CurrentChallengeResponse>('/challenges/current')
+}
+
+export async function updateChallengePreferences(input: UserChallengePreferences): Promise<UserChallengePreferences> {
+  const result = await authJson<{preferences: UserChallengePreferences}>('/challenges/preferences', {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(input),
+  })
+  return result.preferences
+}
