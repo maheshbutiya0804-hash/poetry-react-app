@@ -388,11 +388,17 @@ model CommunityResponse {
 }
 
 model SystemSetting {
-  id                 String   @id @default("platform") @db.VarChar(64)
-  defaultPrintingFee Decimal  @default(7.00) @db.Decimal(10, 2)
-  orderFeedbackEmail Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                         String   @id @default("platform") @db.VarChar(64)
+  defaultPrintingFee         Decimal  @default(7.00) @db.Decimal(10, 2)
+  orderFeedbackEmail         Boolean  @default(true)
+  automaticSmsEnabled        Boolean  @default(true)
+  smsPoetryRequestReceived   Boolean  @default(true)
+  smsPoetryRequestCompleted  Boolean  @default(true)
+  smsCardOrderUpdates        Boolean  @default(true)
+  smsChallengeReminders      Boolean  @default(true)
+  smsSubscriptionNotifications Boolean @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   @@map("systemsetting")
 }

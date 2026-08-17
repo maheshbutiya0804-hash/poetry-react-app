@@ -72,6 +72,76 @@ function paginationMeta(page: number, pageSize: number, total: number) {
   return { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
 }
 
+type AutomaticSmsKind =
+  | 'POETRY_REQUEST_RECEIVED'
+  | 'POETRY_REQUEST_COMPLETED'
+  | 'CARD_ORDER_UPDATES'
+  | 'CHALLENGE_REMINDERS'
+  | 'SUBSCRIPTION_NOTIFICATIONS'
+
+type AutomaticSmsSettingField = 'smsPoetryRequestReceived' | 'smsPoetryRequestCompleted' | 'smsCardOrderUpdates' | 'smsChallengeReminders' | 'smsSubscriptionNotifications'
+const automaticSmsSettingField: Record<AutomaticSmsKind, AutomaticSmsSettingField> = {
+  POETRY_REQUEST_RECEIVED: 'smsPoetryRequestReceived',
+  POETRY_REQUEST_COMPLETED: 'smsPoetryRequestCompleted',
+  CARD_ORDER_UPDATES: 'smsCardOrderUpdates',
+  CHALLENGE_REMINDERS: 'smsChallengeReminders',
+  SUBSCRIPTION_NOTIFICATIONS: 'smsSubscriptionNotifications',
+}
+
+async function getPlatformSettings() {
+  return prisma.systemSetting.upsert({
+    where: { id: 'platform' },
+    update: {},
+    create: { id: 'platform', defaultPrintingFee: 7, orderFeedbackEmail: true },
+  })
+}
+
+async function isAutomaticSmsEnabled(kind: AutomaticSmsKind) {
+  const settings: any = await getPlatformSettings()
+  return Boolean(settings.automaticSmsEnabled && settings[automaticSmsSettingField[kind]])
+}
+
+async function sendAutomaticSmsToUser(userId: string | null | undefined, kind: AutomaticSmsKind, message: string) {
+  if (!userId || !(await isAutomaticSmsEnabled(kind))) return { skipped: true as const }
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, phone: true, status: true } })
+  const phone = normalizeE164Phone(user?.phone)
+  if (!user || user.status !== 'ACTIVE' || !isValidE164Phone(phone)) return { skipped: true as const }
+
+  const job = await prisma.notificationJob.create({
+    data: {
+      channel: 'SMS', audience: 'SINGLE_USER', selectedUserId: user.id, recipientPhone: phone,
+      subject: kind, message, status: 'SENDING', totalRecipients: 1,
+    },
+  })
+  try {
+    await sendTwilioSms(phone, message)
+    await prisma.notificationJob.update({ where: { id: job.id }, data: { status: 'SENT', sentCount: 1, sentAt: new Date() } })
+    return { skipped: false as const, sent: true as const }
+  } catch (error) {
+    console.error(`Automatic SMS ${kind} failed:`, error)
+    await prisma.notificationJob.update({ where: { id: job.id }, data: { status: 'FAILED', failedCount: 1 } })
+    return { skipped: false as const, sent: false as const }
+  }
+}
+
+async function sendAutomaticSmsBroadcast(kind: AutomaticSmsKind, message: string) {
+  if (!(await isAutomaticSmsEnabled(kind))) return { skipped: true as const, sentCount: 0, failedCount: 0 }
+  const subscriptions = await prisma.subscription.findMany({
+    where: { status: 'ACTIVE', user: { status: 'ACTIVE', phone: { not: null } }, OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }] },
+    select: { user: { select: { id: true, phone: true } } },
+  })
+  const recipients = subscriptions.map(row => ({ userId: row.user.id, phone: normalizeE164Phone(row.user.phone) })).filter(row => isValidE164Phone(row.phone))
+  if (!recipients.length) return { skipped: false as const, sentCount: 0, failedCount: 0 }
+  const job = await prisma.notificationJob.create({ data: { channel: 'SMS', audience: 'SUBSCRIBERS_ONLY', subject: kind, message, status: 'SENDING', totalRecipients: recipients.length } })
+  let sentCount = 0, failedCount = 0
+  for (let i=0;i<recipients.length;i+=10) {
+    const results = await Promise.allSettled(recipients.slice(i,i+10).map(r => sendTwilioSms(r.phone, message)))
+    results.forEach(result => result.status === 'fulfilled' ? sentCount++ : failedCount++)
+  }
+  await prisma.notificationJob.update({ where: { id: job.id }, data: { status: sentCount ? 'SENT' : 'FAILED', sentCount, failedCount, sentAt: sentCount ? new Date() : null } })
+  return { skipped: false as const, sentCount, failedCount }
+}
+
 function stripeDashboardUrl(id: string | null | undefined) {
   if (!id) return null
   const testMode = process.env.STRIPE_SECRET_KEY?.trim().startsWith('sk_test_')
@@ -192,7 +262,12 @@ app.post('/billing/stripe-webhook', express.raw({ type: 'application/json' }), a
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.created') {
       const subscription: any = object
       const userId = subscription?.metadata?.userId || await userIdForStripeSubscription(subscription?.id)
-      if (userId) await syncStripeSubscription(String(userId), subscription)
+      if (userId) {
+        await syncStripeSubscription(String(userId), subscription)
+        if (event.type === 'customer.subscription.deleted') {
+          await sendAutomaticSmsToUser(String(userId), 'SUBSCRIPTION_NOTIFICATIONS', 'Laurentine: Your subscription has ended. Subscriber-only Library and custom poetry request access are no longer active.')
+        }
+      }
     } else if (event.type === 'invoice.paid') {
       const invoice: any = object
       const subscriptionId = typeof invoice?.subscription === 'string'
@@ -216,6 +291,7 @@ await upsertSuccessfulStripeInvoice(userId, invoice)
       const userId = await userIdForStripeSubscription(sid)
       if (userId) {
         await prisma.subscription.updateMany({ where: { userId }, data: { paymentStatus: 'FAILED', status: 'PAYMENT_ISSUE' } })
+        await sendAutomaticSmsToUser(userId, 'SUBSCRIPTION_NOTIFICATIONS', 'Laurentine: We could not process your subscription payment. Please review your billing details to keep subscriber access active.')
         await prisma.paymentTransaction.upsert({
           where: { providerTransactionId: String(invoice.id) },
           create: { userId, providerTransactionId: String(invoice.id), description: 'Subscription payment failed', amount: Number(invoice.amount_due ?? 0) / 100, currency: String(invoice.currency ?? 'usd').toUpperCase(), status: 'FAILED' },
@@ -350,6 +426,9 @@ app.get('/billing/confirm-subscription', async (req, res) => {
     const dbSub = await syncStripeSubscription(auth.id, subscription, session.payment_status === 'paid' ? 'PAID' : undefined)
     if (session.payment_status === 'paid' && subscription?.latest_invoice && typeof subscription.latest_invoice !== 'string') {
       await upsertSuccessfulStripeInvoice(auth.id, subscription.latest_invoice)
+    }
+    if (dbSub.status === 'ACTIVE') {
+      await sendAutomaticSmsToUser(auth.id, 'SUBSCRIPTION_NOTIFICATIONS', `Laurentine: Your subscription is active. You now have access to your Library, custom poetry requests, and subscriber features.`)
     }
     res.json({ active: dbSub.status === 'ACTIVE', subscription: { status: dbSub.status, currentPeriodEnd: dbSub.currentPeriodEnd, monthlyPrice: Number(dbSub.monthlyPrice) } })
   } catch (error: any) {
@@ -853,6 +932,7 @@ app.post('/poetry-requests', async (req, res) => {
       status: 'PENDING',
     },
   })
+  await sendAutomaticSmsToUser(auth.id, 'POETRY_REQUEST_RECEIVED', `Laurentine: We received your ${request.occasion || 'custom'} poetry request for ${request.recipientName || 'your recipient'}. We’ll let you know when it is completed.`)
   res.status(201).json(request)
 })
 
@@ -988,6 +1068,37 @@ app.post('/community', async (req, res) => {
     card: post.card ? cardDto(req, post.card) : null,
     createdAt: post.createdAt,
   })
+})
+
+// Daily scheduler hook for challenge SMS reminders. Configure your host/cron service to call this once per day.
+app.post('/internal/challenge-reminders/run', async (req, res) => {
+  const expected = process.env.SMS_CRON_SECRET?.trim()
+  const supplied = String(req.headers['x-cron-secret'] ?? '').trim()
+  if (!expected || supplied !== expected) return res.status(401).json({ message: 'Invalid cron secret.' })
+  if (!(await isAutomaticSmsEnabled('CHALLENGE_REMINDERS'))) return res.json({ sent: 0, skipped: true, reason: 'Challenge reminder SMS is disabled.' })
+
+  const now = new Date()
+  const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const startOfTomorrow = new Date(startOfToday); startOfTomorrow.setUTCDate(startOfTomorrow.getUTCDate() + 1)
+  const reminders = await prisma.challengeReminder.findMany({
+    where: {
+      dayOfMonth: now.getUTCDate(),
+      OR: [{ lastSmsSentAt: null }, { lastSmsSentAt: { lt: startOfToday } }],
+      challenge: {
+        status: 'PUBLISHED',
+        challengeMonth: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) },
+      },
+    },
+    include: { challenge: true },
+  })
+  let sent = 0, failed = 0
+  for (const reminder of reminders) {
+    const message = reminder.smsMessage?.trim() || `Laurentine: A gentle reminder for this month’s challenge, “${reminder.challenge.title}”. Visit Laurentine to continue.`
+    const result = await sendAutomaticSmsBroadcast('CHALLENGE_REMINDERS', message)
+    sent += result.sentCount; failed += result.failedCount
+    await prisma.challengeReminder.update({ where: { id: reminder.id }, data: { lastSmsSentAt: new Date() } })
+  }
+  res.json({ remindersProcessed: reminders.length, sent, failed, date: startOfToday.toISOString(), nextDate: startOfTomorrow.toISOString() })
 })
 
 app.use('/admin', requireAdmin)
@@ -1787,6 +1898,9 @@ app.patch('/admin/requests/:requestId/status', async (req, res) => {
       where: { id: req.params.requestId },
       data: { status: parsed.data.status, completedAt: parsed.data.status === 'COMPLETED' ? new Date() : null },
     })
+    if (parsed.data.status === 'COMPLETED') {
+      await sendAutomaticSmsToUser(request.userId, 'POETRY_REQUEST_COMPLETED', `Laurentine: Your custom poem${request.recipientName ? ` for ${request.recipientName}` : ''} is complete and ready to revisit in your Library.`)
+    }
     res.json(request)
   } catch {
     res.status(404).json({ message: 'Request not found' })
@@ -1821,6 +1935,8 @@ app.patch('/admin/orders/:orderId/status', async (req, res) => {
       where: { id: req.params.orderId },
       data: { status, shippedAt: status === 'SHIPPED' ? new Date() : undefined, deliveredAt: status === 'DELIVERED' ? new Date() : undefined },
     })
+    const statusText: Record<string,string> = { IN_PROGRESS:'is now being prepared', SHIPPED:'has shipped', DELIVERED:'was delivered', CANCELLED:'was cancelled', PLACED:'was placed', QUOTED:'has a shipping quote ready' }
+    await sendAutomaticSmsToUser(order.userId, 'CARD_ORDER_UPDATES', `Laurentine: Order ${order.orderNumber} ${statusText[status] || `is now ${status.toLowerCase()}`}.${order.trackingNumber && status === 'SHIPPED' ? ` Tracking: ${order.trackingNumber}.` : ''}`)
     res.json(orderDto(order))
   } catch {
     res.status(404).json({ message: 'Order not found' })
@@ -1838,6 +1954,7 @@ app.patch('/admin/orders/:orderId/quote', async (req, res) => {
     where: { id: existing.id },
     data: { shippingFee: parsed.data.shippingFee, totalAmount: Number((beforeShipping + parsed.data.shippingFee).toFixed(2)), status: existing.status === 'PLACED' ? 'QUOTED' : existing.status },
   })
+  await sendAutomaticSmsToUser(updated.userId, 'CARD_ORDER_UPDATES', `Laurentine: Shipping for order ${updated.orderNumber} has been reviewed. Your current total is $${Number(updated.totalAmount ?? 0).toFixed(2)}. View Orders for details.`)
   res.json(orderDto(updated))
 })
 
@@ -2087,6 +2204,12 @@ app.put('/admin/settings', async (req, res) => {
   const parsed = z.object({
     defaultPrintingFee: z.coerce.number().min(0).max(9999),
     orderFeedbackEmail: z.boolean(),
+    automaticSmsEnabled: z.boolean(),
+    smsPoetryRequestReceived: z.boolean(),
+    smsPoetryRequestCompleted: z.boolean(),
+    smsCardOrderUpdates: z.boolean(),
+    smsChallengeReminders: z.boolean(),
+    smsSubscriptionNotifications: z.boolean(),
   }).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Invalid settings.', issues: parsed.error.issues })
   const settings = await prisma.systemSetting.upsert({
@@ -2167,6 +2290,7 @@ app.post('/orders', async (req, res) => {
       shippingNote: parsed.data.shippingNote || null,
     },
   })
+  await sendAutomaticSmsToUser(auth.id, 'CARD_ORDER_UPDATES', `Laurentine: We received order ${order.orderNumber} for “${order.cardTitle}”. We’ll review shipping and update you when the quote is ready.`)
   res.status(201).json(orderDto(order))
 })
 

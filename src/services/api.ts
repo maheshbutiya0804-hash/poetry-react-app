@@ -649,9 +649,10 @@ export async function adminModerateResponse(responseId:string,input:{status?:'PU
   return body
 }
 
-export type AdminSettings={id:string;defaultPrintingFee:number;orderFeedbackEmail:boolean;createdAt:string;updatedAt:string}
+export type AdminSettings={id:string;defaultPrintingFee:number;orderFeedbackEmail:boolean;automaticSmsEnabled:boolean;smsPoetryRequestReceived:boolean;smsPoetryRequestCompleted:boolean;smsCardOrderUpdates:boolean;smsChallengeReminders:boolean;smsSubscriptionNotifications:boolean;createdAt:string;updatedAt:string}
+export type AdminSettingsInput=Pick<AdminSettings,'defaultPrintingFee'|'orderFeedbackEmail'|'automaticSmsEnabled'|'smsPoetryRequestReceived'|'smsPoetryRequestCompleted'|'smsCardOrderUpdates'|'smsChallengeReminders'|'smsSubscriptionNotifications'>
 export async function adminGetSettings():Promise<AdminSettings>{const r=await apiFetch(`${API_BASE}/admin/settings`);if(!r.ok)throw new Error('Unable to load settings');return r.json()}
-export async function adminSaveSettings(input:{defaultPrintingFee:number;orderFeedbackEmail:boolean}):Promise<AdminSettings>{
+export async function adminSaveSettings(input:AdminSettingsInput):Promise<AdminSettings>{
  const r=await apiFetch(`${API_BASE}/admin/settings`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.message??'Unable to save settings');return b
 }
 
