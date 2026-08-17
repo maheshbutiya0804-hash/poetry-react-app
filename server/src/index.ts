@@ -1719,6 +1719,76 @@ app.delete('/admin/challenges/:challengeId', async (req, res) => {
 const requestStatusSchema = z.object({ status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']) })
 const orderStatusSchema = z.object({ status: z.enum(['PLACED', 'QUOTED', 'IN_PROGRESS', 'SHIPPED', 'DELIVERED', 'CANCELLED']) })
 
+
+const userPoetryRequestSchema = z.object({
+  occasion: z.string().trim().min(1).max(191),
+  recipientName: z.string().trim().min(1).max(191),
+  relationship: z.string().trim().min(1).max(191),
+  description: z.string().trim().min(1).max(10000),
+  tone: z.string().trim().min(1).max(191),
+})
+
+async function requireActiveSubscriber(req: express.Request, res: express.Response) {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) {
+    res.status(401).json({ message: 'Authentication required.' })
+    return null
+  }
+
+  const subscription = await prisma.subscription.findUnique({ where: { userId: auth.id } })
+  if (!subscription || subscription.status !== 'ACTIVE') {
+    res.status(403).json({ message: 'An active subscription is required.' })
+    return null
+  }
+
+  return auth
+}
+
+app.get('/poetry-requests', async (req, res) => {
+  const auth = await requireActiveSubscriber(req, res)
+  if (!auth) return
+
+  const requests = await prisma.poetryRequest.findMany({
+    where: { userId: auth.id },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  res.json(requests)
+})
+
+app.post('/poetry-requests', async (req, res) => {
+  const auth = await requireActiveSubscriber(req, res)
+  if (!auth) return
+
+  const parsed = userPoetryRequestSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: 'Please complete all poetry request fields.',
+      issues: parsed.error.issues,
+    })
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: auth.id } })
+  if (!user) return res.status(404).json({ message: 'User not found.' })
+
+  const request = await prisma.poetryRequest.create({
+    data: {
+      userId: auth.id,
+      requesterName: user.fullName,
+      requesterEmail: user.email,
+      category: parsed.data.occasion,
+      occasion: parsed.data.occasion,
+      recipientName: parsed.data.recipientName,
+      relationship: parsed.data.relationship,
+      tone: parsed.data.tone,
+      prompt: parsed.data.description,
+      status: 'PENDING',
+    },
+  })
+
+  res.status(201).json(request)
+})
+
 app.get('/admin/requests', async (req, res) => {
   const search = String(req.query.search ?? '').trim(), status = String(req.query.status ?? '').trim(), category = String(req.query.category ?? '').trim(), collection = String(req.query.collection ?? '').trim()
   const { page, pageSize, skip } = paginationFromQuery(req)

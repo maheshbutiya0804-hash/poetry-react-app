@@ -114,7 +114,7 @@ export function LibraryPage(){
                 <div className="min-w-[280px] max-w-[420px] flex-1 max-[760px]:min-w-0 max-[760px]:max-w-none max-[760px]:basis-full">
                   <label className="relative mx-auto block w-full max-w-3xl">
                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[#877b70]"><SearchIcon/></span>
-                    <input value={search} style={{background: '#f4eee5', borderRadius: '3.40282e38px', padding: '13px 40px', border:'1px solid #392f271a'}} onChange={e=>setSearch(e.target.value)} placeholder="Search your saved cards..." className="h-[58px] w-full rounded-full border border-[rgba(57,47,39,0.1)] bg-[#f4eee5] px-[22px] py-0 pl-[54px] text-charcoal outline-none transition placeholder:text-[#8a7e72] focus:border-forest/25 focus:ring-2 focus:ring-forest/10" type="search"/>
+                    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search your saved cards..." className="h-[58px] w-full rounded-full border border-[rgba(57,47,39,0.1)] bg-[#f4eee5] px-[22px] py-0 pl-[54px] text-charcoal outline-none transition placeholder:text-[#8a7e72] focus:border-forest/25 focus:ring-2 focus:ring-forest/10" type="search"/>
                   </label>
                 </div>
 
