@@ -24,6 +24,7 @@ const challengesRoot = path.join(storageRoot, 'challenges')
 const importsRoot = path.join(storageRoot, 'imports')
 
 const app = express()
+app.set('trust proxy', 1)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
@@ -270,7 +271,9 @@ const publicCardSelect = {
 
 function absoluteAssetUrl(req: express.Request, relativePath: string | null) {
   if (!relativePath) return null
-  return `${req.protocol}://${req.get('host')}/uploads/${relativePath.replaceAll('\\', '/')}`
+  const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim()
+  const protocol = forwardedProto || req.protocol
+  return `${protocol}://${req.get('host')}/uploads/${relativePath.replaceAll('\\', '/')}`
 }
 
 function cardDto(req: express.Request, card: any) {
@@ -810,6 +813,53 @@ async function hasActiveSubscription(userId: string) {
   const subscription = await prisma.subscription.findUnique({ where: { userId } })
   return Boolean(subscription?.status === 'ACTIVE' && (!subscription.currentPeriodEnd || subscription.currentPeriodEnd > new Date()))
 }
+
+const challengePreferenceSchema = z.object({
+  challengeEmailEnabled: z.boolean(),
+  challengeSmsEnabled: z.boolean(),
+})
+
+app.get('/challenges/current', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to access monthly challenges.' })
+
+  const now = new Date()
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  const [challenge, user] = await Promise.all([
+    prisma.challenge.findFirst({
+      where: { status: 'PUBLISHED', challengeMonth: { gte: monthStart, lt: nextMonth } },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      include: { reminders: { where: { isActive: true }, orderBy: { dayOfMonth: 'asc' } } },
+    }),
+    prisma.user.findUnique({ where: { id: auth.id }, select: { challengeEmailEnabled: true, challengeSmsEnabled: true } }),
+  ])
+
+  res.json({
+    challenge: challenge ? challengeDto(req, challenge) : null,
+    preferences: {
+      challengeEmailEnabled: user?.challengeEmailEnabled ?? true,
+      challengeSmsEnabled: user?.challengeSmsEnabled ?? true,
+    },
+  })
+})
+
+app.patch('/challenges/preferences', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to update challenge notifications.' })
+  const parsed = challengePreferenceSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid challenge notification preferences.' })
+  const user = await prisma.user.update({
+    where: { id: auth.id },
+    data: parsed.data,
+    select: { challengeEmailEnabled: true, challengeSmsEnabled: true },
+  })
+  res.json({ preferences: user })
+})
+
+
 
 app.get('/library', async (req, res) => {
   const auth = await getAuthenticatedUser(req)
