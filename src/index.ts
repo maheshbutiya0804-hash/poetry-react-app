@@ -25,7 +25,6 @@ const challengesRoot = path.join(storageRoot, 'challenges')
 const importsRoot = path.join(storageRoot, 'imports')
 
 const app = express()
-app.set('trust proxy', 1)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
@@ -352,9 +351,7 @@ const publicCardSelect = {
 
 function absoluteAssetUrl(req: express.Request, relativePath: string | null) {
   if (!relativePath) return null
-  const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim()
-  const protocol = forwardedProto || req.protocol
-  return `${protocol}://${req.get('host')}/uploads/${relativePath.replaceAll('\\', '/')}`
+  return `${req.protocol}://${req.get('host')}/uploads/${relativePath.replaceAll('\\', '/')}`
 }
 
 function cardDto(req: express.Request, card: any) {
