@@ -38,7 +38,7 @@ export function BulkUploadCardsPage(){
     <div className="bulk-upload-grid">
       <label>Collection<select value={collectionId} onChange={e=>setCollectionId(e.target.value)} disabled={!!job&&!['COMPLETE','FAILED'].includes(job.status)}><option value="">Select collection</option>{collections.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
       <label className="bulk-drop"><input type="file" accept=".zip,application/zip" onChange={e=>setZip(e.target.files?.[0]??null)} disabled={busy}/><b>{zip?zip.name:'Choose ZIP file'}</b><span>{zip?`${(zip.size/1024/1024).toFixed(1)} MB`:'ZIP may contain hundreds of PDF files'}</span></label>
-      <label className="bulk-publish"><input type="checkbox" checked={publish} onChange={e=>setPublish(e.target.checked)}/><span><b>Publish cards after validation</b><small>Leave off to import everything as drafts first.</small></span></label>
+      <label className="bulk-publish"><input style={{ marginTop:'10px' ,width: '35%'}} type="checkbox" checked={publish} onChange={e=>setPublish(e.target.checked)}/><span><b>Publish cards after validation</b><small>Leave off to import everything as drafts first.</small></span></label>
       <button className="hs-btn" disabled={busy||!zip||!collectionId} onClick={start}>{busy?'Uploading…':'Upload & Process ZIP'}</button>
     </div>
     {error&&<div className="hs-error">{error}</div>}

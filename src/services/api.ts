@@ -233,6 +233,12 @@ export async function adminSetPublished(cardId: string, published: boolean): Pro
   return response.json()
 }
 
+export async function adminSetFeatured(cardId: string, featured: boolean): Promise<LoveNoteCard> {
+  const response = await apiFetch(`${API_BASE}/admin/cards/${cardId}/featured`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({featured})})
+  if (!response.ok) throw new Error('Unable to update card featured visibility')
+  return response.json()
+}
+
 export async function adminDeleteCard(cardId: string): Promise<void> {
   const response = await apiFetch(`${API_BASE}/admin/cards/${cardId}`, {method:'DELETE'})
   if (!response.ok) throw new Error('Unable to delete card')

@@ -1438,6 +1438,21 @@ app.patch('/admin/cards/:cardId/publish', async (req, res) => {
   }
 })
 
+app.patch('/admin/cards/:cardId/featured', async (req, res) => {
+  const body = z.object({ featured: z.boolean() }).safeParse(req.body)
+  if (!body.success) return res.status(400).json({ message: 'featured must be boolean' })
+  try {
+    const card = await prisma.card.update({
+      where: { id: req.params.cardId },
+      data: { isFeatured: body.data.featured },
+      select: publicCardSelect,
+    })
+    res.json(cardDto(req, card))
+  } catch {
+    res.status(404).json({ message: 'Card not found' })
+  }
+})
+
 app.delete('/admin/cards/:cardId', async (req, res) => {
   try {
     const card = await prisma.card.delete({ where: { id: req.params.cardId } })
