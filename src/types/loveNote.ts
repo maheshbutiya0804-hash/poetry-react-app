@@ -32,4 +32,5 @@ export type LoveNoteCard = {
   sideCount?: number
   pageCount?: number
   updatedAt?: string
+  isBulkUploaded?: boolean
 }

@@ -1233,9 +1233,12 @@ app.get('/admin/cards', async (req, res) => {
 })
 
 app.get('/admin/cards/:cardId', async (req, res) => {
-  const card = await prisma.card.findUnique({ where: { id: req.params.cardId }, select: publicCardSelect })
+  const [card, importItem] = await Promise.all([
+    prisma.card.findUnique({ where: { id: req.params.cardId }, select: publicCardSelect }),
+    prisma.cardImportItem.findFirst({ where: { cardId: req.params.cardId }, select: { id: true } }),
+  ])
   if (!card) return res.status(404).json({ message: 'Card not found' })
-  res.json(cardDto(req, card))
+  res.json({ ...cardDto(req, card), isBulkUploaded: Boolean(importItem) })
 })
 
 const cardFieldsSchema = z.object({
@@ -1420,6 +1423,42 @@ app.put('/admin/cards/:cardId/design', upload.none(), async (req, res) => {
     if (error instanceof z.ZodError) return res.status(400).json({ message: 'Invalid card data.', issues: error.issues })
     console.error(error)
     res.status(500).json({ message: 'Could not update designed card.' })
+  }
+})
+
+const bulkCardBasicSchema = z.object({
+  collectionId: z.string().min(1),
+  title: z.string().min(2).max(140),
+  published: z.boolean(),
+  featured: z.boolean(),
+})
+
+app.patch('/admin/cards/:cardId/basic', async (req, res) => {
+  const body = bulkCardBasicSchema.safeParse(req.body)
+  if (!body.success) return res.status(400).json({ message: 'Invalid card data.', issues: body.error.issues })
+  try {
+    const [collection, card, importItem] = await Promise.all([
+      prisma.collection.findUnique({ where: { id: body.data.collectionId } }),
+      prisma.card.findUnique({ where: { id: req.params.cardId }, select: { id: true } }),
+      prisma.cardImportItem.findFirst({ where: { cardId: req.params.cardId }, select: { id: true } }),
+    ])
+    if (!card) return res.status(404).json({ message: 'Card not found' })
+    if (!importItem) return res.status(400).json({ message: 'This simplified editor is only available for bulk-uploaded cards.' })
+    if (!collection || !collection.isActive) return res.status(400).json({ message: 'Invalid collection.' })
+    const updated = await prisma.card.update({
+      where: { id: req.params.cardId },
+      data: {
+        collectionId: body.data.collectionId,
+        title: body.data.title.trim(),
+        isPublished: body.data.published,
+        isFeatured: body.data.featured,
+      },
+      select: publicCardSelect,
+    })
+    res.json({ ...cardDto(req, updated), isBulkUploaded: true })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Could not update bulk-uploaded card.' })
   }
 })
 

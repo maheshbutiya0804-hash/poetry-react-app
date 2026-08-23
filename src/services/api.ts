@@ -227,6 +227,17 @@ export async function adminUpdateDesignedCard(cardId: string, formData: FormData
   return body
 }
 
+export async function adminUpdateBulkCard(cardId: string, data: {collectionId:string;title:string;published:boolean;featured:boolean}): Promise<LoveNoteCard> {
+  const response = await apiFetch(`${API_BASE}/admin/cards/${cardId}/basic`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to update bulk card')
+  return body
+}
+
 export async function adminSetPublished(cardId: string, published: boolean): Promise<LoveNoteCard> {
   const response = await apiFetch(`${API_BASE}/admin/cards/${cardId}/publish`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({published})})
   if (!response.ok) throw new Error('Unable to update card status')
