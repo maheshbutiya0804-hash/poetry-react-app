@@ -59,6 +59,7 @@ model Card {
   savedBy          SavedCard[]
   orders           CardOrder[]
   communityPosts   CommunityPost[]
+  challengeParticipations ChallengeParticipation[]
   widthInches      Float      @default(7)
   heightInches     Float      @default(5)
   orientation      String     @default("landscape") @db.VarChar(32)
@@ -135,6 +136,7 @@ model User {
   notificationJobs NotificationJob[]
   authSessions     AuthSession[]
   savedCards       SavedCard[]
+  challengeParticipations ChallengeParticipation[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -225,11 +227,35 @@ model Challenge {
   status              String              @default("DRAFT") @db.VarChar(32)
   publishedAt         DateTime?
   reminders           ChallengeReminder[]
+  participations       ChallengeParticipation[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
   @@index([status, challengeMonth])
   @@map("challenge")
+}
+
+
+model ChallengeParticipation {
+  id               String    @id @default(cuid()) @db.VarChar(191)
+  userId           String    @db.VarChar(191)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId      String    @db.VarChar(191)
+  challenge        Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  selectedLocation String?   @db.VarChar(191)
+  selectedCardId   String?   @db.VarChar(191)
+  selectedCard     Card?     @relation(fields: [selectedCardId], references: [id], onDelete: SetNull)
+  status           String    @default("STARTED") @db.VarChar(32)
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, challengeId])
+  @@index([challengeId, status])
+  @@index([userId, status])
+  @@index([selectedCardId])
+  @@map("challengeparticipation")
 }
 
 model ChallengeReminder {

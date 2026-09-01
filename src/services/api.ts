@@ -821,13 +821,47 @@ export type UserMonthlyChallenge = {
   publishedAt?: string | null
 }
 
+export type ChallengeParticipation = {
+  id: string
+  challengeId: string
+  selectedLocation: string | null
+  selectedCardId: string | null
+  selectedCard: null | { id:string; title:string; collectionId:string; collectionName:string }
+  status: 'STARTED' | 'COMPLETED'
+  startedAt: string
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type ChallengeCardOption = {
+  id: string
+  title: string
+  collectionId: string
+  collectionName: string
+  isFeatured: boolean
+}
+
 export type CurrentChallengeResponse = {
   challenge: UserMonthlyChallenge | null
+  participation: ChallengeParticipation | null
   preferences: UserChallengePreferences
 }
 
 export async function getCurrentChallenge(): Promise<CurrentChallengeResponse> {
   return authJson<CurrentChallengeResponse>('/challenges/current')
+}
+
+export async function getChallengeCardOptions(): Promise<ChallengeCardOption[]> {
+  return authJson<ChallengeCardOption[]>('/challenges/cards')
+}
+
+export async function updateChallengeParticipation(challengeId:string, input:{selectedLocation?:string|null; selectedCardId?:string|null; status?:'STARTED'|'COMPLETED'}):Promise<ChallengeParticipation>{
+  const result=await authJson<{participation:ChallengeParticipation}>(`/challenges/${encodeURIComponent(challengeId)}/participation`,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(input),
+  })
+  return result.participation
 }
 
 export async function updateChallengePreferences(input: UserChallengePreferences): Promise<UserChallengePreferences> {

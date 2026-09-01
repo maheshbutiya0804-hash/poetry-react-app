@@ -819,6 +819,32 @@ const challengePreferenceSchema = z.object({
   challengeSmsEnabled: z.boolean(),
 })
 
+const challengeParticipationSchema = z.object({
+  selectedLocation: z.string().trim().max(191).nullable().optional(),
+  selectedCardId: z.string().trim().max(191).nullable().optional(),
+  status: z.enum(['STARTED', 'COMPLETED']).optional(),
+})
+
+function challengeParticipationDto(participation: any) {
+  if (!participation) return null
+  return {
+    id: participation.id,
+    challengeId: participation.challengeId,
+    selectedLocation: participation.selectedLocation ?? null,
+    selectedCardId: participation.selectedCardId ?? null,
+    selectedCard: participation.selectedCard ? {
+      id: participation.selectedCard.id,
+      title: participation.selectedCard.title,
+      collectionId: participation.selectedCard.collectionId,
+      collectionName: participation.selectedCard.collection?.name ?? '',
+    } : null,
+    status: participation.status,
+    startedAt: participation.startedAt,
+    completedAt: participation.completedAt,
+    updatedAt: participation.updatedAt,
+  }
+}
+
 app.get('/challenges/current', async (req, res) => {
   const auth = await getAuthenticatedUser(req)
   if (!auth) return res.status(401).json({ message: 'Authentication required.' })
@@ -836,13 +862,90 @@ app.get('/challenges/current', async (req, res) => {
     prisma.user.findUnique({ where: { id: auth.id }, select: { challengeEmailEnabled: true, challengeSmsEnabled: true } }),
   ])
 
+  const participation = challenge ? await prisma.challengeParticipation.findUnique({
+    where: { userId_challengeId: { userId: auth.id, challengeId: challenge.id } },
+    include: { selectedCard: { select: { id: true, title: true, collectionId: true, collection: { select: { name: true } } } } },
+  }) : null
+
   res.json({
     challenge: challenge ? challengeDto(req, challenge) : null,
+    participation: challengeParticipationDto(participation),
     preferences: {
       challengeEmailEnabled: user?.challengeEmailEnabled ?? true,
       challengeSmsEnabled: user?.challengeSmsEnabled ?? true,
     },
   })
+})
+
+app.get('/challenges/cards', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to choose a Love Note.' })
+  const cards = await prisma.card.findMany({
+    where: { isPublished: true },
+    orderBy: [{ isFeatured: 'desc' }, { updatedAt: 'desc' }],
+    take: 250,
+    select: { id: true, title: true, collectionId: true, isFeatured: true, collection: { select: { name: true } } },
+  })
+  res.json(cards.map(card => ({
+    id: card.id,
+    title: card.title,
+    collectionId: card.collectionId,
+    collectionName: card.collection.name,
+    isFeatured: card.isFeatured,
+  })))
+})
+
+app.patch('/challenges/:challengeId/participation', async (req, res) => {
+  const auth = await getAuthenticatedUser(req)
+  if (!auth) return res.status(401).json({ message: 'Authentication required.' })
+  if (!(await hasActiveSubscription(auth.id))) return res.status(403).json({ message: 'An active subscription is required to join monthly challenges.' })
+  const parsed = challengeParticipationSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid challenge participation update.' })
+
+  const challenge = await prisma.challenge.findFirst({ where: { id: req.params.challengeId, status: 'PUBLISHED' } })
+  if (!challenge) return res.status(404).json({ message: 'Challenge not found.' })
+
+  const allowedLocations = Array.isArray(challenge.scavengerLocations) ? challenge.scavengerLocations.filter((item: unknown): item is string => typeof item === 'string') : []
+  if (parsed.data.selectedLocation && !allowedLocations.includes(parsed.data.selectedLocation)) {
+    return res.status(400).json({ message: 'Choose one of the available Where to Leave It locations.' })
+  }
+
+  if (parsed.data.selectedCardId) {
+    const card = await prisma.card.findFirst({ where: { id: parsed.data.selectedCardId, isPublished: true }, select: { id: true } })
+    if (!card) return res.status(400).json({ message: 'Choose an available published Love Note.' })
+  }
+
+  const existing = await prisma.challengeParticipation.findUnique({
+    where: { userId_challengeId: { userId: auth.id, challengeId: challenge.id } },
+  })
+  const selectedLocation = parsed.data.selectedLocation !== undefined ? parsed.data.selectedLocation : existing?.selectedLocation ?? null
+  const selectedCardId = parsed.data.selectedCardId !== undefined ? parsed.data.selectedCardId : existing?.selectedCardId ?? null
+  const nextStatus = parsed.data.status ?? existing?.status ?? 'STARTED'
+
+  if (nextStatus === 'COMPLETED' && (!selectedLocation || !selectedCardId)) {
+    return res.status(400).json({ message: 'Choose a Love Note and a Where to Leave It location before completing the challenge.' })
+  }
+
+  const participation = await prisma.challengeParticipation.upsert({
+    where: { userId_challengeId: { userId: auth.id, challengeId: challenge.id } },
+    create: {
+      userId: auth.id,
+      challengeId: challenge.id,
+      selectedLocation,
+      selectedCardId,
+      status: nextStatus,
+      completedAt: nextStatus === 'COMPLETED' ? new Date() : null,
+    },
+    update: {
+      selectedLocation,
+      selectedCardId,
+      status: nextStatus,
+      completedAt: nextStatus === 'COMPLETED' ? (existing?.completedAt ?? new Date()) : null,
+    },
+    include: { selectedCard: { select: { id: true, title: true, collectionId: true, collection: { select: { name: true } } } } },
+  })
+  res.json({ participation: challengeParticipationDto(participation) })
 })
 
 app.patch('/challenges/preferences', async (req, res) => {
