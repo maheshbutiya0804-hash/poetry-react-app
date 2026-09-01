@@ -1687,6 +1687,7 @@ const challengeSchema = z.object({
   relationshipBenefit: z.string().min(1).max(10000),
   status: z.enum(['DRAFT', 'PUBLISHED']).optional().default('DRAFT'),
   reminders: z.string().optional().default('[]'),
+  scavengerLocations: z.string().optional().default('[]'),
 })
 
 function challengeDto(req: express.Request, challenge: any) {
@@ -1698,6 +1699,7 @@ function challengeDto(req: express.Request, challenge: any) {
     goal: challenge.goal,
     howToComplete: challenge.howToComplete,
     relationshipBenefit: challenge.relationshipBenefit,
+    scavengerLocations: Array.isArray(challenge.scavengerLocations) ? challenge.scavengerLocations : [],
     imageUrl: absoluteAssetUrl(req, challenge.imagePath),
     status: challenge.status,
     publishedAt: challenge.publishedAt,
@@ -1744,6 +1746,8 @@ app.post('/admin/challenges', upload.single('image'), async (req, res) => {
     if (image && !['image/png', 'image/jpeg', 'image/webp'].includes(image.mimetype)) {
       return res.status(400).json({ message: 'Challenge image must be PNG, JPEG, or WebP.' })
     }
+    const scavengerLocations = z.array(z.string().trim().min(1).max(120)).max(12).parse(JSON.parse(fields.scavengerLocations || '[]'))
+
     const reminderInput = z.array(z.object({
       dayOfMonth: z.number().int().min(1).max(31),
       timeOfDay: z.string().regex(/^\d{2}:\d{2}$/),
@@ -1774,6 +1778,7 @@ app.post('/admin/challenges', upload.single('image'), async (req, res) => {
         goal: fields.goal,
         howToComplete: fields.howToComplete,
         relationshipBenefit: fields.relationshipBenefit,
+        scavengerLocations,
         imagePath: imageRelative,
         status: fields.status,
         publishedAt: fields.status === 'PUBLISHED' ? new Date() : null,

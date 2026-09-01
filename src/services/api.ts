@@ -421,6 +421,7 @@ export type AdminChallenge = {
   goal: string
   howToComplete: string
   relationshipBenefit: string
+  scavengerLocations?: string[]
   imageUrl?: string | null
   status: 'DRAFT' | 'PUBLISHED'
   publishedAt?: string | null
@@ -814,6 +815,7 @@ export type UserMonthlyChallenge = {
   goal: string
   howToComplete: string
   relationshipBenefit: string
+  scavengerLocations?: string[]
   imageUrl?: string | null
   status: string
   publishedAt?: string | null

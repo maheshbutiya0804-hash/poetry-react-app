@@ -220,6 +220,7 @@ model Challenge {
   goal                String              @db.Text
   howToComplete       String              @db.Text
   relationshipBenefit String              @db.Text
+  scavengerLocations Json?
   imagePath           String?             @db.VarChar(500)
   status              String              @default("DRAFT") @db.VarChar(32)
   publishedAt         DateTime?

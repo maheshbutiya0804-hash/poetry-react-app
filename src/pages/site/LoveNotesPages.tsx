@@ -95,6 +95,8 @@ export function CollectionPage() {
   )
 }
 
+const FEATURED_WHERE_TO_LEAVE_IT=['Bathroom mirror','Nightstand','Fridge','Lunch bag','Car','TV area','Pillow','Bedroom door','Coffee maker','Book','Kitchen drawer','Office desk / favorite seat']
+
 export function LoveNoteDetailPage() {
   const { cardId = '' } = useParams()
   const { user, loading: authLoading } = useAuth()
@@ -212,6 +214,7 @@ export function LoveNoteDetailPage() {
           <p className="reference-save-note">{hasAccess ? 'Downloads are available from your Saved Library. Physical cards can be ordered anytime.' : 'The original PDF is available only with an active subscription.'}</p>
         </aside>
       </section>
+      {hasAccess && card.isFeatured && <section className="mx-auto mb-8 w-[calc(100%-64px)] max-w-[1220px] rounded-[28px] border border-[rgba(57,47,39,.11)] bg-[#f8f1e8] p-7 max-[760px]:w-[calc(100%-36px)] max-[760px]:p-5"><span className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-[#aa7f38]">Love in Action · Scavenger List</span><div className="mt-2 flex flex-wrap items-end justify-between gap-3"><div><h2 className="m-0 font-serif text-[2.2rem] font-semibold leading-none text-[#2f2a25]">Where to Leave It</h2><p className="mt-2 max-w-[720px] text-sm leading-6 text-[#776d62]">Turn this featured note into a small surprise. Choose any place below and leave it somewhere your spouse can discover naturally.</p></div><span className="rounded-full bg-[#fcfaf7] px-3 py-2 text-xs font-bold text-[#776d62]">Optional · strongly encouraged</span></div><div className="mt-5 grid grid-cols-4 gap-3 max-[980px]:grid-cols-3 max-[720px]:grid-cols-2 max-[480px]:grid-cols-1">{FEATURED_WHERE_TO_LEAVE_IT.map((location,index)=><div key={location} className="flex items-center gap-3 rounded-[16px] border border-[rgba(57,47,39,.09)] bg-[#fcfaf7] px-4 py-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[rgba(23,57,47,.08)] text-xs font-extrabold text-[#17392f]">{String(index+1).padStart(2,'0')}</span><span className="text-sm font-semibold text-[#4f473f]">{location}</span></div>)}</div></section>}
       {!!related.length&&<section className="reference-related"><p className="reference-related-label">RELATED CARDS</p><div className="reference-related-grid">{related.map(item=><Link key={item.id} to={`/cards/${item.id}`} className="reference-related-card"><LoveNoteCard card={item}/><h3>{item.title}</h3></Link>)}</div></section>}
       {subscriptionModal&&<div className="subscription-success-backdrop" role="dialog" aria-modal="true" aria-label="Subscription Active"><div className="subscription-success-modal"><div className="subscription-success-check">✓</div><h2>Subscription Active!</h2><p>Welcome to the library. Your full access is now unlocked, and you can save any cards to library now.</p><button type="button" onClick={closeSuccess}>Continue Exploring</button></div></div>}
     </main>
