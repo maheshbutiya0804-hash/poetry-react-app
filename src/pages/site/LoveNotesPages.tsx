@@ -197,7 +197,7 @@ export function LoveNoteDetailPage() {
 
   return (
     <main className="reference-card-page">
-      <div className="reference-back-row"><Link to={`/love-notes/${card.collectionId}`}>← <span>Back to Browse</span></Link></div>
+      <div className="reference-back-row">{searchParams.get('from') === 'challenge' ? <Link to="/challenges">← <span>Back to Challenge</span></Link> : <Link to={`/love-notes/${card.collectionId}`}>← <span>Back to Browse</span></Link>}</div>
       <section className="reference-card-detail">
         <div className="reference-preview-column">
           <div className="protected-card-shell personalized-card-preview"><LoveNoteCard card={card} eager />{!hasAccess && <><div className="protected-fade" aria-hidden="true"/><div className="protected-message"><strong>PROTECTED PREVIEW</strong><p>Subscribe to unlock the original print-ready PDF.</p></div></>}<div className="personalization-footer-preview"><span><small>For:</small>{recipientName.trim() || 'Recipient'}</span><span><small>With Love:</small>{senderName.trim() || 'Your Name'}</span></div></div>

@@ -444,6 +444,34 @@ export async function adminGetChallenges(params: {search?: string; status?: stri
   return response.json()
 }
 
+
+export type AdminChallengeParticipant = {
+  id: string
+  user: { id:string; fullName:string; email:string }
+  selectedLocation: string | null
+  selectedCard: null | { id:string; title:string; collectionName:string }
+  status: 'STARTED' | 'COMPLETED'
+  startedAt: string
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type AdminChallengeParticipantsResponse = {
+  challenge: { id:string; title:string; challengeMonth:string }
+  summary: { joined:number; inProgress:number; completed:number; completionRate:number }
+  participants: AdminChallengeParticipant[]
+  pagination: AdminPagination
+}
+
+export async function adminGetChallengeParticipants(challengeId:string, params:{search?:string;status?:string;page?:number;pageSize?:number}={}):Promise<AdminChallengeParticipantsResponse>{
+  const qs=new URLSearchParams()
+  Object.entries(params).forEach(([key,value])=>{if(value)qs.set(key,String(value))})
+  const response=await apiFetch(`${API_BASE}/admin/challenges/${encodeURIComponent(challengeId)}/participants${qs.size?`?${qs}`:''}`)
+  const body=await response.json().catch(()=>({}))
+  if(!response.ok) throw new Error(body.message??'Unable to load challenge participants')
+  return body
+}
+
 export async function adminCreateChallenge(formData: FormData): Promise<AdminChallenge> {
   const response = await apiFetch(`${API_BASE}/admin/challenges`, { method: 'POST', body: formData })
   const body = await response.json().catch(() => ({}))

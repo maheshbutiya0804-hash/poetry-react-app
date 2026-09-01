@@ -65,7 +65,7 @@ function ChallengeContent({challenge,participation,cards,saving,onSelectLocation
             <option value="">Choose a Love Note…</option>
             {cards.map(card=><option key={card.id} value={card.id}>{card.isFeatured?'★ ':''}{card.title} — {card.collectionName}</option>)}
           </select>
-          {selectedCardId&&<a href={`/cards/${encodeURIComponent(selectedCardId)}`} className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#17392f] px-5 text-sm font-bold text-[#17392f]">Open Love Note</a>}
+          {selectedCardId&&<a href={`/cards/${encodeURIComponent(selectedCardId)}?from=challenge&challengeId=${encodeURIComponent(challenge.id)}`} className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#17392f] px-5 text-sm font-bold text-[#17392f]">Open Love Note</a>}
         </div>
         {participation?.selectedCard&&<p className="mt-3 text-sm text-[#6f6459]">Selected: <strong className="text-[#2f2a25]">{participation.selectedCard.title}</strong> · {participation.selectedCard.collectionName}</p>}
       </section>

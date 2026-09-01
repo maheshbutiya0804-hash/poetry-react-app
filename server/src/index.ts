@@ -1833,6 +1833,58 @@ app.get('/admin/challenges', async (req, res) => {
   res.json({ summary: { total, drafts, published }, challenges: challenges.map(c => challengeDto(req,c)), pagination: paginationMeta(page,pageSize,filteredTotal) })
 })
 
+app.get('/admin/challenges/:challengeId/participants', async (req, res) => {
+  const challengeId = req.params.challengeId
+  const challenge = await prisma.challenge.findUnique({ where: { id: challengeId }, select: { id: true, title: true, challengeMonth: true } })
+  if (!challenge) return res.status(404).json({ message: 'Challenge not found' })
+
+  const search = String(req.query.search ?? '').trim()
+  const status = String(req.query.status ?? '').trim()
+  const { page, pageSize, skip } = paginationFromQuery(req)
+  const where: any = { challengeId }
+  if (status) where.status = status
+  if (search) {
+    where.user = { OR: [{ fullName: { contains: search } }, { email: { contains: search } }] }
+  }
+
+  const [participants, filteredTotal, joined, completed] = await Promise.all([
+    prisma.challengeParticipation.findMany({
+      where,
+      orderBy: [{ completedAt: 'desc' }, { startedAt: 'desc' }],
+      skip,
+      take: pageSize,
+      include: {
+        user: { select: { id: true, fullName: true, email: true } },
+        selectedCard: { select: { id: true, title: true, collection: { select: { name: true } } } },
+      },
+    }),
+    prisma.challengeParticipation.count({ where }),
+    prisma.challengeParticipation.count({ where: { challengeId } }),
+    prisma.challengeParticipation.count({ where: { challengeId, status: 'COMPLETED' } }),
+  ])
+
+  res.json({
+    challenge,
+    summary: {
+      joined,
+      inProgress: Math.max(0, joined - completed),
+      completed,
+      completionRate: joined ? Math.round((completed / joined) * 100) : 0,
+    },
+    participants: participants.map((item: any) => ({
+      id: item.id,
+      user: item.user,
+      selectedLocation: item.selectedLocation,
+      selectedCard: item.selectedCard ? { id: item.selectedCard.id, title: item.selectedCard.title, collectionName: item.selectedCard.collection?.name ?? '' } : null,
+      status: item.status,
+      startedAt: item.startedAt,
+      completedAt: item.completedAt,
+      updatedAt: item.updatedAt,
+    })),
+    pagination: paginationMeta(page, pageSize, filteredTotal),
+  })
+})
+
 app.get('/admin/challenges/:challengeId', async (req, res) => {
   const challenge = await prisma.challenge.findUnique({
     where: { id: req.params.challengeId },
