@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createSubscriptionCheckout, getCurrentChallenge, updateChallengePreferences, type UserMonthlyChallenge } from '../../services/api'
+import { confirmSubscriptionCheckout, createSubscriptionCheckout, getCurrentChallenge, updateChallengePreferences, type UserMonthlyChallenge } from '../../services/api'
 
 function PreferenceToggle({label,description,checked,onChange,disabled}:{label:string;description:string;checked:boolean;onChange:(checked:boolean)=>void;disabled:boolean}){
   return <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-[rgba(57,47,39,0.12)] bg-[#f9f5ef] px-5 py-4">
@@ -48,16 +48,32 @@ export function UserChallengesPage(){
   const [checkout,setCheckout]=useState(false)
 
   useEffect(()=>{
-    getCurrentChallenge().then(data=>{
-      setSubscriber(true)
-      setChallenge(data.challenge)
-      setEmailEnabled(data.preferences.challengeEmailEnabled)
-      setSmsEnabled(data.preferences.challengeSmsEnabled)
-    }).catch(e=>{
-      const text=e instanceof Error?e.message:'Unable to load challenges.'
-      if(/active subscription/i.test(text)) setSubscriber(false)
-      else setError(text)
-    }).finally(()=>setLoading(false))
+    let cancelled=false
+    ;(async()=>{
+      setLoading(true);setError('')
+      try{
+        const params=new URLSearchParams(window.location.search)
+        const sessionId=params.get('session_id')
+        if(params.get('checkout')==='success' && sessionId){
+          const result=await confirmSubscriptionCheckout(sessionId)
+          if(!result.active) throw new Error('Your payment was received, but the subscription is not active yet. Please refresh in a moment.')
+          // Remove Stripe checkout parameters so refresh/back does not confirm the same session again.
+          window.history.replaceState({},'',`${window.location.pathname}${window.location.hash}`)
+        }
+        const data=await getCurrentChallenge()
+        if(cancelled)return
+        setSubscriber(true)
+        setChallenge(data.challenge)
+        setEmailEnabled(data.preferences.challengeEmailEnabled)
+        setSmsEnabled(data.preferences.challengeSmsEnabled)
+      }catch(e){
+        if(cancelled)return
+        const text=e instanceof Error?e.message:'Unable to load challenges.'
+        if(/active subscription/i.test(text)) setSubscriber(false)
+        else setError(text)
+      }finally{if(!cancelled)setLoading(false)}
+    })()
+    return()=>{cancelled=true}
   },[])
 
   async function save(nextEmail:boolean,nextSms:boolean){
