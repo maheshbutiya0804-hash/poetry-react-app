@@ -21,6 +21,7 @@ const serverRoot = path.resolve(__dirname, '..')
 const storageRoot = process.env.STORAGE_ROOT?.trim() || path.join(serverRoot, 'storage')
 const cardsRoot = path.join(storageRoot, 'cards')
 const challengesRoot = path.join(storageRoot, 'challenges')
+const scavengerRoot = path.join(storageRoot, 'scavenger')
 const importsRoot = path.join(storageRoot, 'imports')
 
 const app = express()
@@ -242,6 +243,7 @@ app.use('/uploads/cards',
 )
 app.use('/uploads/profiles', express.static(path.join(storageRoot, 'profiles')))
 app.use('/uploads/challenges', express.static(challengesRoot))
+app.use('/uploads/scavenger', express.static(scavengerRoot))
 
 const publicCardSelect = {
   id: true,
@@ -1115,32 +1117,75 @@ app.get('/admin/scavenger-locations', async (req, res) => {
   const items = await prisma.scavengerLocation.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] })
   res.json(items.map(item => ({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })))
 })
+function scavengerImageExtension(file: Express.Multer.File) {
+  if (file.mimetype === 'image/png') return '.png'
+  if (file.mimetype === 'image/webp') return '.webp'
+  if (file.mimetype === 'image/jpeg') return '.jpg'
+  return null
+}
+
+async function saveScavengerImage(id: string, file: Express.Multer.File) {
+  const ext = scavengerImageExtension(file)
+  if (!ext) throw new Error('INVALID_SCAVENGER_IMAGE')
+  await fs.mkdir(scavengerRoot, { recursive: true })
+  const filename = `${id}${ext}`
+  await fs.writeFile(path.join(scavengerRoot, filename), file.buffer)
+  return path.join('scavenger', filename)
+}
+
+async function removeScavengerImage(relativePath: string | null | undefined) {
+  if (!relativePath) return
+  const normalized = relativePath.replaceAll('\\', '/')
+  if (!normalized.startsWith('scavenger/')) return
+  const filePath = path.join(storageRoot, normalized)
+  if (existsSync(filePath)) await fs.rm(filePath, { force: true })
+}
+
 app.post('/admin/scavenger-locations', upload.single('image'), async (req, res) => {
   const parsed = scavengerLocationSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Please enter valid scavenger location details.' })
-  const item = await prisma.scavengerLocation.create({ data: { ...parsed.data, imagePath: req.file ? `/uploads/${req.file.filename}` : null } })
-  res.status(201).json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
+  if (req.file && !scavengerImageExtension(req.file)) return res.status(400).json({ message: 'Location image must be PNG, JPEG, or WebP.' })
+  try {
+    const id = randomUUID()
+    const imagePath = req.file ? await saveScavengerImage(id, req.file) : null
+    const item = await prisma.scavengerLocation.create({ data: { id, ...parsed.data, imagePath } })
+    res.status(201).json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Unable to create scavenger location.' })
+  }
 })
 app.put('/admin/scavenger-locations/:id', upload.single('image'), async (req, res) => {
   const parsed = scavengerLocationSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: 'Please enter valid scavenger location details.' })
+  if (req.file && !scavengerImageExtension(req.file)) return res.status(400).json({ message: 'Location image must be PNG, JPEG, or WebP.' })
   try {
     const current = await prisma.scavengerLocation.findUnique({ where: { id: req.params.id } })
     if (!current) return res.status(404).json({ message: 'Scavenger location not found.' })
-    const item = await prisma.scavengerLocation.update({ where: { id: req.params.id }, data: { ...parsed.data, imagePath: req.file ? `/uploads/${req.file.filename}` : current.imagePath } })
+    let imagePath = current.imagePath
+    if (req.file) {
+      const nextImagePath = await saveScavengerImage(current.id, req.file)
+      if (current.imagePath && current.imagePath !== nextImagePath) await removeScavengerImage(current.imagePath)
+      imagePath = nextImagePath
+    }
+    const item = await prisma.scavengerLocation.update({ where: { id: req.params.id }, data: { ...parsed.data, imagePath } })
     res.json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
   } catch (error) { console.error(error); res.status(500).json({ message: 'Unable to update scavenger location.' }) }
 })
 app.patch('/admin/scavenger-locations/:id/status', async (req, res) => {
-  const isActive = Boolean(req.body?.isActive)
+  const parsed = z.object({ isActive: z.boolean() }).safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid scavenger location status.' })
   try {
-    const item = await prisma.scavengerLocation.update({ where: { id: req.params.id }, data: { isActive } })
+    const item = await prisma.scavengerLocation.update({ where: { id: req.params.id }, data: { isActive: parsed.data.isActive } })
     res.json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
   } catch { res.status(404).json({ message: 'Scavenger location not found.' }) }
 })
 app.delete('/admin/scavenger-locations/:id', async (req, res) => {
-  try { await prisma.scavengerLocation.delete({ where: { id: req.params.id } }); res.status(204).end() }
-  catch { res.status(404).json({ message: 'Scavenger location not found.' }) }
+  try {
+    const item = await prisma.scavengerLocation.delete({ where: { id: req.params.id } })
+    await removeScavengerImage(item.imagePath)
+    res.status(204).end()
+  } catch { res.status(404).json({ message: 'Scavenger location not found.' }) }
 })
 
 
