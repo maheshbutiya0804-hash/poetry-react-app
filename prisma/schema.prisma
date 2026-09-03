@@ -1,0 +1,422 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  slug        String   @unique @db.VarChar(191)
+  name        String   @db.VarChar(191)
+  description String   @default("") @db.Text
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  cards       Card[]
+  communityPosts CommunityPost[]
+  poetryRequests PoetryRequest[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("collection")
+}
+
+model Category {
+  id          String   @id @default(cuid()) @db.VarChar(191)
+  name        String   @unique @db.VarChar(191)
+  slug        String   @unique @db.VarChar(191)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  cards       Card[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("category")
+}
+
+model Card {
+  id               String     @id @default(cuid()) @db.VarChar(191)
+  slug             String     @unique @db.VarChar(191)
+  collectionId     String     @db.VarChar(191)
+  collection       Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  categoryId       String?    @db.VarChar(191)
+  category         Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title            String     @db.VarChar(191)
+  description      String     @default("") @db.Text
+  pdfPath          String?    @db.VarChar(500)
+  previewPath      String?    @db.VarChar(500)
+  originalFileName String?    @db.VarChar(255)
+  poemText         String     @default("") @db.Text
+  adminNotes       String     @default("") @db.Text
+  isFeatured       Boolean    @default(false)
+  templateKey      String     @default("botanical-cream") @db.VarChar(80)
+  frontLayout      Json?
+  backLayout       Json?
+  savedBy          SavedCard[]
+  orders           CardOrder[]
+  communityPosts   CommunityPost[]
+  widthInches      Float      @default(7)
+  heightInches     Float      @default(5)
+  orientation      String     @default("landscape") @db.VarChar(32)
+  sideCount        Int        @default(1)
+  pageCount        Int        @default(1)
+  isPublished      Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([collectionId, isPublished])
+  @@index([categoryId])
+  @@index([isPublished, createdAt])
+  @@map("card")
+}
+
+model CardImportJob {
+  id              String           @id @default(cuid()) @db.VarChar(191)
+  collectionId    String           @db.VarChar(191)
+  originalZipName String           @db.VarChar(255)
+  zipPath         String           @db.VarChar(500)
+  totalFiles      Int              @default(0)
+  processedFiles  Int              @default(0)
+  successCount    Int              @default(0)
+  failedCount     Int              @default(0)
+  status          String           @default("QUEUED") @db.VarChar(32)
+  errorMessage    String?          @db.Text
+  publishOnImport Boolean          @default(false)
+  items           CardImportItem[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([collectionId, createdAt])
+  @@map("cardimportjob")
+}
+
+model CardImportItem {
+  id               String        @id @default(cuid()) @db.VarChar(191)
+  jobId            String        @db.VarChar(191)
+  job              CardImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  originalFilename String        @db.VarChar(500)
+  title            String        @db.VarChar(191)
+  cardId           String?       @db.VarChar(191)
+  pdfPath          String?       @db.VarChar(500)
+  previewPath      String?       @db.VarChar(500)
+  pageCount        Int?
+  status           String        @default("QUEUED") @db.VarChar(32)
+  errorMessage     String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([jobId, status])
+  @@map("cardimportitem")
+}
+
+model User {
+  id               String               @id @default(cuid()) @db.VarChar(191)
+  fullName         String               @db.VarChar(191)
+  email            String               @unique @db.VarChar(191)
+  phone            String?              @db.VarChar(50)
+  passwordHash     String?              @db.VarChar(255)
+  googleSubject    String?              @unique @db.VarChar(191)
+  profileImageUrl  String?              @db.VarChar(500)
+  challengeEmailEnabled Boolean          @default(true)
+  challengeSmsEnabled   Boolean          @default(true)
+  lastLoginAt      DateTime?
+  role             String               @default("USER") @db.VarChar(32)
+  status           String               @default("ACTIVE") @db.VarChar(32)
+  joinedAt         DateTime             @default(now())
+  subscription     Subscription?
+  payments         PaymentTransaction[]
+  poetryRequests   PoetryRequest[]
+  cardOrders       CardOrder[]
+  notificationJobs NotificationJob[]
+  authSessions     AuthSession[]
+  savedCards       SavedCard[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([role, status])
+  @@index([joinedAt])
+  @@map("user")
+}
+
+model AuthSession {
+  id         String   @id @default(cuid()) @db.VarChar(191)
+  userId     String   @db.VarChar(191)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique @db.Char(64)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("authsession")
+}
+
+model Subscription {
+  id                String    @id @default(cuid()) @db.VarChar(191)
+  userId            String    @unique @db.VarChar(191)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planName          String    @default("Monthly Access") @db.VarChar(120)
+  status            String    @default("INCOMPLETE") @db.VarChar(32)
+  paymentStatus     String    @default("NONE") @db.VarChar(32)
+  monthlyPrice      Decimal   @default(8.99) @db.Decimal(10, 2)
+  startedAt         DateTime?
+  currentPeriodEnd  DateTime?
+  cancelledAt       DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  stripeCustomerId    String?   @unique @db.VarChar(191)
+  stripeSubscriptionId String?  @unique @db.VarChar(191)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([paymentStatus])
+  @@map("subscription")
+}
+
+model PaymentTransaction {
+  id                    String   @id @default(cuid()) @db.VarChar(191)
+  userId                String   @db.VarChar(191)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerTransactionId String?  @unique @db.VarChar(191)
+  description           String   @default("Subscription update") @db.VarChar(191)
+  amount                Decimal  @db.Decimal(10, 2)
+  currency              String   @default("USD") @db.VarChar(10)
+  status                String   @default("SUCCESS") @db.VarChar(32)
+  occurredAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+
+  @@index([userId, occurredAt])
+  @@index([status, occurredAt])
+  @@map("paymenttransaction")
+}
+
+model SavedCard {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @db.VarChar(191)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    String   @db.VarChar(191)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, cardId])
+  @@index([userId, createdAt])
+  @@index([cardId])
+  @@map("savedcard")
+}
+
+model Challenge {
+  id                  String              @id @default(cuid()) @db.VarChar(191)
+  title               String              @db.VarChar(191)
+  challengeMonth      DateTime
+  overview            String              @db.Text
+  goal                String              @db.Text
+  howToComplete       String              @db.Text
+  relationshipBenefit String              @db.Text
+  scavengerLocations Json?
+  imagePath           String?             @db.VarChar(500)
+  status              String              @default("DRAFT") @db.VarChar(32)
+  publishedAt         DateTime?
+  reminders           ChallengeReminder[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([status, challengeMonth])
+  @@map("challenge")
+}
+
+model ChallengeReminder {
+  id          String    @id @default(cuid()) @db.VarChar(191)
+  challengeId String    @db.VarChar(191)
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  dayOfMonth  Int
+  timeOfDay   String    @default("09:00") @db.VarChar(10)
+  channel     String    @default("EMAIL") @db.VarChar(20)
+  isActive    Boolean   @default(true)
+  emailSubject String?   @db.VarChar(255)
+  emailMessage String?   @db.Text
+  smsMessage   String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  @@index([challengeId, dayOfMonth])
+  @@map("challengereminder")
+}
+
+model PoetryRequest {
+  id             String    @id @default(cuid()) @db.VarChar(191)
+  userId         String?   @db.VarChar(191)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requesterName  String    @db.VarChar(191)
+  requesterEmail String    @db.VarChar(191)
+  category       String    @db.VarChar(120)
+  collectionId   String?   @db.VarChar(191)
+  collection     Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  occasion       String?   @db.VarChar(191)
+  recipientName  String?   @db.VarChar(191)
+  relationship   String?   @db.VarChar(191)
+  tone           String?   @db.VarChar(191)
+  prompt         String    @db.Text
+  status         String    @default("PENDING") @db.VarChar(32)
+  adminNotes     String?   @db.Text
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@index([collectionId])
+  @@index([userId])
+  @@map("poetryrequest")
+}
+
+model CardOrder {
+  id              String    @id @default(cuid()) @db.VarChar(191)
+  orderNumber     String    @unique @db.VarChar(80)
+  userId          String?   @db.VarChar(191)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName    String    @db.VarChar(191)
+  customerEmail   String    @db.VarChar(191)
+  cardId          String?   @db.VarChar(191)
+  card            Card?     @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  cardTitle       String    @db.VarChar(191)
+  cardCategory    String?   @db.VarChar(120)
+  quantity        Int       @default(1)
+  cardPrice       Decimal   @default(7.99) @db.Decimal(10, 2)
+  printingFee     Decimal   @default(7.00) @db.Decimal(10, 2)
+  subtotal        Decimal?  @db.Decimal(10, 2)
+  shippingFee     Decimal?  @db.Decimal(10, 2)
+  totalAmount     Decimal?  @db.Decimal(10, 2)
+  status          String    @default("PLACED") @db.VarChar(32)
+  reviewed        Boolean   @default(false)
+  shippingName    String?   @db.VarChar(191)
+  personalizationRecipient String? @db.VarChar(120)
+  personalizationSender    String? @db.VarChar(120)
+  shippingAddress String?   @db.Text
+  shippingNote    String?   @db.Text
+  trackingNumber  String?   @db.VarChar(191)
+  placedAt        DateTime  @default(now())
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  estimatedDeliveryDate DateTime?
+  feedbackRating  Int?
+  feedbackText    String?   @db.Text
+  paymentStatus   String    @default("UNPAID") @db.VarChar(32)
+  paymentReceipt  String?   @db.VarChar(500)
+  paymentDate     DateTime?
+  paymentMethod   String?   @db.VarChar(80)
+  refundStatus    String?   @db.VarChar(80)
+  stripePaymentId String?   @db.VarChar(191)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, placedAt])
+  @@index([reviewed])
+  @@index([userId])
+  @@index([cardId])
+  @@map("cardorder")
+}
+
+model NotificationJob {
+  id              String    @id @default(cuid()) @db.VarChar(191)
+  channel         String    @default("EMAIL") @db.VarChar(20)
+  audience        String    @default("SINGLE_USER") @db.VarChar(32)
+  selectedUserId  String?   @db.VarChar(191)
+  selectedUser    User?     @relation(fields: [selectedUserId], references: [id], onDelete: SetNull)
+  recipientEmail  String?   @db.VarChar(191)
+  recipientPhone  String?   @db.VarChar(50)
+  subject         String?   @db.VarChar(255)
+  message         String    @db.Text
+  status          String    @default("QUEUED") @db.VarChar(32)
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([audience, createdAt])
+  @@index([selectedUserId])
+  @@map("notificationjob")
+}
+
+model CommunityPost {
+  id           String              @id @default(cuid()) @db.VarChar(191)
+  authorId     String?             @db.VarChar(191)
+  authorName   String              @db.VarChar(191)
+  isAnonymous  Boolean             @default(false)
+  collectionId String?             @db.VarChar(191)
+  collection   Collection?         @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  cardId       String?             @db.VarChar(191)
+  card         Card?               @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  category     String              @default("General") @db.VarChar(120)
+  title        String              @db.VarChar(255)
+  body         String              @db.Text
+  status       String              @default("PUBLISHED") @db.VarChar(32)
+  isReported   Boolean             @default(false)
+  reportCount  Int                 @default(0)
+  responses    CommunityResponse[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([isReported, createdAt])
+  @@index([collectionId, createdAt])
+  @@index([cardId])
+  @@map("communitypost")
+}
+
+model CommunityResponse {
+  id          String        @id @default(cuid()) @db.VarChar(191)
+  postId      String        @db.VarChar(191)
+  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorName  String        @db.VarChar(191)
+  body        String        @db.Text
+  status      String        @default("PUBLISHED") @db.VarChar(32)
+  isReported  Boolean       @default(false)
+  reportCount Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([postId, createdAt])
+  @@index([isReported, createdAt])
+  @@map("communityresponse")
+}
+
+model SystemSetting {
+  id                         String   @id @default("platform") @db.VarChar(64)
+  defaultPrintingFee         Decimal  @default(7.00) @db.Decimal(10, 2)
+  orderFeedbackEmail         Boolean  @default(true)
+  automaticSmsEnabled        Boolean  @default(true)
+  smsPoetryRequestReceived   Boolean  @default(true)
+  smsPoetryRequestCompleted  Boolean  @default(true)
+  smsCardOrderUpdates        Boolean  @default(true)
+  smsChallengeReminders      Boolean  @default(true)
+  smsSubscriptionNotifications Boolean @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@map("systemsetting")
+}
+
+model ScavengerLocation {
+  id          String   @id @default(cuid()) @db.VarChar(191)
+  name        String   @db.VarChar(191)
+  description String?  @db.VarChar(500)
+  icon        String?  @db.VarChar(80)
+  imagePath   String?  @db.VarChar(500)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("scavengerlocation")
+}

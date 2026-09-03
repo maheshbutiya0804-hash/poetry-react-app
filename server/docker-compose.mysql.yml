@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: heartstring-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: heartstring_root
+      MYSQL_DATABASE: heartstring_notes
+      MYSQL_USER: heartstring
+      MYSQL_PASSWORD: heartstring_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - heartstring_mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pheartstring_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  heartstring_mysql_data:

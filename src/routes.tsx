@@ -1,36 +1,42 @@
 import { createBrowserRouter } from 'react-router-dom'
-import { AppShell, AdminShell } from './components/app/AppShell'
-import LandingPage from './pages/LandingPage'
-import * as U from './pages/user/Pages'
-import * as A from './pages/admin/Pages'
+import { SiteLayout } from './components/layout/SiteLayout'
+import { HomePage, AboutPage, LoveInActionPage, MonthlyChallengesPage, ScavengerHuntPage, FaqPage } from './pages/site/StaticPages'
+import { CollectionPage, LoveNoteDetailPage, LoveNotesPage } from './pages/site/LoveNotesPages'
+import { BrowsePage } from './pages/site/BrowsePage'
+import { ForgotPasswordPage, LoginPage, RegisterPage } from './pages/auth/AuthPages'
+import { AdminLayout } from './admin/components/AdminLayout'
+import { OverviewPage } from './admin/pages/OverviewPage'
+import { CardsPage } from './admin/pages/CardsPage'
+import { CreateCardPage } from './admin/pages/CreateCardPage'
+import { BulkUploadCardsPage } from './admin/pages/BulkUploadCardsPage'
+import { UsersPage } from './admin/pages/UsersPage'
+import { SubscriptionsPage } from './admin/pages/SubscriptionsPage'
+import { UserDetailPage } from './admin/pages/UserDetailPage'
+import { ChallengesPage } from './admin/pages/ChallengesPage'
+import { CreateChallengePage } from './admin/pages/CreateChallengePage'
+import { ChallengeParticipantsPage } from './admin/pages/ChallengeParticipantsPage'
+import { AdminScavengerHuntPage } from './admin/pages/ScavengerHuntPage'
+import { RequestsPage } from './admin/pages/RequestsPage'
+import { OrdersPage } from './admin/pages/OrdersPage'
+import { OrderDetailPage } from './admin/pages/OrderDetailPage'
+import { NotificationsPage } from './admin/pages/NotificationsPage'
+import { CommunityPage } from './admin/pages/CommunityPage'
+import { SettingsPage } from './admin/pages/SettingsPage'
+import { CollectionsPage } from './admin/pages/CollectionsPage'
+import { CategoriesPage } from './admin/pages/CategoriesPage'
+import { RequireAdmin } from './auth/RequireAdmin'
+import { GuestOnly, RequireAuth } from './auth/RequireAuth'
+import { ProfilePage } from './pages/user/ProfilePage'
+import { UserOrderDetailPage, UserOrdersPage } from './pages/user/OrdersPage'
+import { LibraryPage } from './pages/user/LibraryPage'
+import { AddPoetryRequestPage } from './pages/user/Pages'
+import { ForumPage, ShareStoryPage } from './pages/user/ForumPage'
+import { PhysicalOrderPage } from './pages/user/PhysicalOrderPage'
+import { UserChallengesPage } from './pages/user/ChallengesPage'
+import { SubscriptionCancelledPage, SubscriptionSuccessPage } from './pages/site/SubscriptionResultPages'
 
 export const router = createBrowserRouter([
-  { element: <AppShell />, children: [
-    { path: '/', element: <LandingPage /> },
-    { path: '/landing-secondary', element: <U.LandingSecondaryPage /> },
-    { path: '/search', element: <U.SearchPage /> },
-    { path: '/categories', element: <U.CategoriesPage /> },
-    { path: '/category/:slug', element: <U.CategoryPage /> },
-    { path: '/sign-up', element: <U.SignUpPage /> }, { path: '/sign-in', element: <U.SignInPage /> },
-    { path: '/change-password', element: <U.ChangePasswordPage /> }, { path: '/reset-password', element: <U.ResetPasswordPage /> },
-    { path: '/dashboard', element: <U.DashboardPage /> },
-    { path: '/card/:id/front', element: <U.CardFrontPage /> }, { path: '/card/:id/back', element: <U.CardBackPage /> },
-    { path: '/card/:id/front-locked', element: <U.CardFrontLockedPage /> }, { path: '/card/:id/back-locked', element: <U.CardBackLockedPage /> },
-    { path: '/card/:id/order', element: <U.OrderCardPage /> }, { path: '/library', element: <U.LibraryPage /> },
-    { path: '/profile', element: <U.ProfilePage /> }, { path: '/forum', element: <U.ForumPage /> },
-    { path: '/forum/new', element: <U.AddForumPostPage /> }, { path: '/forum/post/:id', element: <U.ForumPostPage /> },
-    { path: '/poetry-requests', element: <U.PoetryRequestsPage /> }, { path: '/poetry-requests/new', element: <U.AddPoetryRequestPage /> },
-    { path: '/poetry-requests/:id', element: <U.PoetryRequestDetailPage /> }, { path: '/orders', element: <U.OrdersPage /> },
-    { path: '/orders/:id', element: <U.OrderDetailPage /> }
-  ]},
-  { path: '/admin', element: <AdminShell />, children: [
-    { index: true, element: <A.AdminDashboard /> }, { path: 'cards', element: <A.AdminCards /> },
-    { path: 'cards/new', element: <A.AdminCreateCard /> }, { path: 'cards/new/back', element: <A.AdminCreateCardBack /> },
-    { path: 'cards/bulk-upload', element: <A.AdminBulkUpload /> }, { path: 'cards/bulk-upload/review', element: <A.AdminBulkUploadReview /> },
-    { path: 'users', element: <A.AdminUsers /> }, { path: 'subscriptions', element: <A.AdminSubscriptions /> },
-    { path: 'poetry-requests', element: <A.AdminPoetryRequests /> }, { path: 'poetry-requests/:id', element: <A.AdminPoetryRequestDetail /> },
-    { path: 'orders', element: <A.AdminOrders /> }, { path: 'orders/:id', element: <A.AdminOrderDetail /> },
-    { path: 'notifications', element: <A.AdminNotifications /> }, { path: 'community', element: <A.AdminCommunity /> },
-    { path: 'community/:id', element: <A.AdminCommunityReview /> }, { path: 'settings', element: <A.AdminSettings /> }
-  ]}
+ {element:<SiteLayout/>,children:[{path:'/',element:<HomePage/>},{path:'/about',element:<AboutPage/>},{path:'/love-in-action',element:<LoveInActionPage/>},{path:'/faq',element:<FaqPage/>},{path:'/monthly-challenges',element:<MonthlyChallengesPage/>},{path:'/scavenger-hunt',element:<ScavengerHuntPage/>},{path:'/browse',element:<BrowsePage/>},{path:'/love-notes',element:<LoveNotesPage/>},{path:'/love-notes/:collectionId',element:<CollectionPage/>},{path:'/love-notes/:collectionId/:cardId',element:<LoveNoteDetailPage/>},{path:'/cards/:cardId',element:<LoveNoteDetailPage/>},{path:'/profile',element:<RequireAuth><ProfilePage/></RequireAuth>},{path:'/library',element:<RequireAuth><LibraryPage/></RequireAuth>},{path:'/challenges',element:<RequireAuth><UserChallengesPage/></RequireAuth>},{path:'/poetry-request',element:<RequireAuth><AddPoetryRequestPage/></RequireAuth>},{path:'/forum',element:<RequireAuth><ForumPage/></RequireAuth>},{path:'/forum/share',element:<RequireAuth><ShareStoryPage/></RequireAuth>},{path:'/orders',element:<RequireAuth><UserOrdersPage/></RequireAuth>},{path:'/orders/:orderId',element:<RequireAuth><UserOrderDetailPage/></RequireAuth>},{path:'/cards/:cardId/order',element:<RequireAuth><PhysicalOrderPage/></RequireAuth>},{path:'/subscription/success',element:<SubscriptionSuccessPage/>},{path:'/subscription/cancelled',element:<SubscriptionCancelledPage/>}]},
+ {path:'/login',element:<GuestOnly><LoginPage/></GuestOnly>},{path:'/register',element:<GuestOnly><RegisterPage/></GuestOnly>},{path:'/forgot-password',element:<ForgotPasswordPage/>},
+ {path:'/admin',element:<RequireAdmin><AdminLayout/></RequireAdmin>,children:[{index:true,element:<OverviewPage/>},{path:'cards',element:<CardsPage/>},{path:'cards/new',element:<CreateCardPage/>},{path:'cards/bulk-upload',element:<BulkUploadCardsPage/>},{path:'cards/:cardId/edit',element:<CreateCardPage/>},{path:'collections',element:<CollectionsPage/>},{path:'categories',element:<CategoriesPage/>},{path:'users',element:<UsersPage/>},{path:'users/:userId',element:<UserDetailPage/>},{path:'subscriptions',element:<SubscriptionsPage/>},{path:'requests',element:<RequestsPage/>},{path:'challenges',element:<ChallengesPage/>},{path:'challenges/create',element:<CreateChallengePage/>},{path:'challenges/:challengeId/participants',element:<ChallengeParticipantsPage/>},{path:'scavenger-hunt',element:<AdminScavengerHuntPage/>},{path:'orders',element:<OrdersPage/>},{path:'orders/:orderId',element:<OrderDetailPage/>},{path:'notifications',element:<NotificationsPage/>},{path:'community',element:<CommunityPage/>},{path:'settings',element:<SettingsPage/>}]}
 ])

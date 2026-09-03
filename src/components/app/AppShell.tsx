@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 const userLinks = [
   ['/', 'Home'], ['/search', 'Search'], ['/categories', 'Categories'], ['/dashboard', 'Dashboard'],
-  ['/library', 'Library'], ['/forum', 'Forum'], ['/poetry-requests', 'Requests'], ['/orders', 'Orders'], ['/profile', 'Profile']
+  ['/library', 'Library'], ['/challenges', 'Challenges'], ['/forum', 'Forum'], ['/poetry-requests', 'Requests'], ['/orders', 'Orders'], ['/profile', 'Profile']
 ]
 
 export function AppShell() {

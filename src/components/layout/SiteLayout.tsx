@@ -1,0 +1,111 @@
+import { useState } from 'react'
+import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../auth/AuthContext'
+
+const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()
+
+export function SiteLayout(){
+  const [open,setOpen]=useState(false)
+  const [accountOpen,setAccountOpen]=useState(false)
+  const [loveOpen,setLoveOpen]=useState(false)
+  const {user,logout}=useAuth()
+  const navigate=useNavigate()
+
+  async function signOut(){await logout();setAccountOpen(false);navigate('/login')}
+
+    return (
+      <div className="flex min-h-screen flex-col font-sans bg-ivory text-charcoal">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-7 border-b border-[rgba(57,47,39,0.12)] bg-[rgba(252,250,247,0.9)] px-16 py-4 max-[760px]:gap-3.5 max-[760px]:px-4.5 max-[760px]:py-4">
+          <Link className="flex items-center gap-2.5" to="/" onClick={()=>setOpen(false)}>
+            <img alt="Laurentine" className="h-10 w-auto object-contain" src="/assets/branding/laurentine-logo.png"/>
+            <span className="whitespace-nowrap font-serif text-[24px] font-semibold leading-none text-[#2f2a25]">Laurentine<sup className="ml-px align-super text-[46%] text-[#9f8d79]">™</sup></span>
+          </Link>
+
+          <nav aria-label="Primary navigation" className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center gap-7 text-base text-[#53493f] max-[1024px]:hidden">
+            <Link className="relative py-1.5 text-[#53493f]" to="/browse">Browse</Link>
+            <Link className="relative py-1.5 text-[#53493f]" to="/love-notes">Categories</Link>
+            <div className="relative" onMouseEnter={()=>setLoveOpen(true)} onMouseLeave={()=>setLoveOpen(false)}>
+              <button type="button" className="inline-flex items-center gap-1.5 py-1.5 text-[#53493f]" aria-haspopup="menu" aria-expanded={loveOpen} onClick={()=>setLoveOpen(v=>!v)}>
+                Love in Action
+                <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div className={`absolute left-1/2 top-[calc(100%+8px)] z-50 w-64 -translate-x-1/2 rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.99)] p-2 shadow-[0_18px_30px_rgba(42,31,21,0.12)] ${loveOpen?'block':'hidden'}`} role="menu">
+                <Link className="block rounded-xl px-4 py-3 font-semibold text-[#2f2a25] hover:bg-[#f4eee5]" to="/love-in-action" onClick={()=>setLoveOpen(false)}>Love in Action Overview</Link>
+                <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/monthly-challenges" onClick={()=>setLoveOpen(false)}>Monthly Challenges</Link>
+                <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/scavenger-hunt" onClick={()=>setLoveOpen(false)}>Scavenger Hunt</Link>
+              </div>
+            </div>
+            {user&&<><Link className="relative py-1.5 text-[#53493f]" to="/library">Library</Link><Link className="relative py-1.5 text-[#53493f]" to="/forum">Forum</Link><Link className="relative py-1.5 text-[#53493f]" to="/orders">Orders</Link></>}
+          </nav>
+
+          <div className="flex flex-wrap items-center gap-3.5 max-[1024px]:hidden">
+            {user ? (
+              <div className="relative">
+                <button type="button" className="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-[rgba(57,47,39,0.12)] bg-[#f4eee5] text-sm font-semibold text-[#2f2a25]" onClick={()=>setAccountOpen(v=>!v)}>
+                  {user.profileImageUrl?<img src={user.profileImageUrl} alt="" className="h-full w-full object-cover"/>:initials(user.fullName)}
+                </button>
+                {accountOpen&&<div className="absolute right-0 top-[calc(100%+10px)] min-w-55 flex flex-col gap-2 rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.98)] p-2.5 shadow-[0_18px_30px_rgba(42,31,21,0.1)]"><Link className="rounded-xl px-3.5 py-3 hover:bg-[#f4eee5]" to="/profile" onClick={()=>setAccountOpen(false)}>Profile &amp; Settings</Link><button className="rounded-xl px-3.5 py-3 text-left hover:bg-[#f4eee5]" onClick={signOut}>Logout</button></div>}
+              </div>
+            ) : (
+              <>
+                <Link to="/login">Sign In</Link>
+                <Link className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[#17392f] py-2 px-4 text-[#f7f3ec] shadow-[0_12px_24px_rgba(23,57,47,0.12)]" to="/register">Start Access</Link>
+              </>
+            )}
+          </div>
+
+          <div className="relative ml-auto hidden max-[1024px]:inline-flex">
+            <button type="button" aria-expanded={open} aria-controls="public-menu-panel" aria-label="Open navigation options" className="inline-flex min-h-11.5 cursor-pointer items-center gap-2.5 rounded-full border border-[rgba(57,47,39,0.1)] bg-[rgba(244,238,229,0.92)] px-4 text-[#2f2a25] shadow-browse" onClick={()=>setOpen(v=>!v)}>
+              <span className="whitespace-nowrap text-sm hidden sm:inline-block">Menu</span>
+              <svg aria-hidden="true" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+            </button>
+            <div id="public-menu-panel" className={`absolute right-0 top-[calc(100%+10px)] min-w-55 flex-col gap-2 rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.98)] p-2.5 shadow-[0_18px_30px_rgba(42,31,21,0.1)] ${open?'flex':'hidden'}`}>
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:-translate-y-px hover:bg-[#f4eee5] focus:-translate-y-px focus:bg-[#f4eee5] focus:outline-none" to="/browse" onClick={()=>setOpen(false)}>Browse</Link>
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:-translate-y-px hover:bg-[#f4eee5] focus:-translate-y-px focus:bg-[#f4eee5] focus:outline-none" to="/love-notes" onClick={()=>setOpen(false)}>Categories</Link>
+              <div className="my-1 border-t border-[rgba(57,47,39,0.08)]" />
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 font-semibold text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/love-in-action" onClick={()=>setOpen(false)}>Love in Action</Link>
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 pl-6 text-[#5f554b] transition hover:bg-[#f4eee5]" to="/monthly-challenges" onClick={()=>setOpen(false)}>Monthly Challenges</Link>
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 pl-6 text-[#5f554b] transition hover:bg-[#f4eee5]" to="/scavenger-hunt" onClick={()=>setOpen(false)}>Scavenger Hunt</Link>
+              <div className="my-1 border-t border-[rgba(57,47,39,0.08)]" />
+              {user ? (
+                <>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/library" onClick={()=>setOpen(false)}>Library</Link>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/challenges" onClick={()=>setOpen(false)}>My Challenges</Link>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/forum" onClick={()=>setOpen(false)}>Forum</Link>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/orders" onClick={()=>setOpen(false)}>Orders</Link>
+                  <div className="my-1 border-t border-[rgba(57,47,39,0.1)]" />
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/profile" onClick={()=>setOpen(false)}>Profile &amp; Settings</Link>
+                  <button className="flex items-center justify-between gap-3 rounded-xl bg-[#17392f] px-3.5 py-3 text-[#f7f3ec]" onClick={signOut}>Logout</button>
+                </>
+              ) : (
+                <>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:-translate-y-px hover:bg-[#f4eee5] focus:-translate-y-px focus:bg-[#f4eee5] focus:outline-none" to="/login" onClick={()=>setOpen(false)}><span>Sign In</span><svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></Link>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl bg-[#17392f] px-3.5 py-3 text-[#f7f3ec] shadow-[0_12px_24px_rgba(23,57,47,0.12)]" to="/register" onClick={()=>setOpen(false)}><span>Start Access</span><svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></Link>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <Outlet/>
+
+        <footer className="border-t border-[rgba(57,47,39,0.12)] bg-[#faf7f2] px-16 py-5 max-[760px]:px-4.5">
+          <div className="flex items-center justify-between gap-6 max-[760px]:flex-col max-[760px]:items-start">
+            <div className="flex flex-col items-baseline-last">
+              <Link className="flex items-center gap-2.5" to="/">
+                <img alt="Laurentine" className="h-10 w-auto object-contain" src="/assets/branding/laurentine-logo.png"/>
+                <span className="whitespace-nowrap font-serif text-[24px] font-semibold leading-none text-[#2f2a25]">Laurentine<sup className="ml-px align-super text-[46%] text-[#9f8d79]">™</sup></span>
+              </Link>
+              <p className="text-[13px] leading-relaxed text-[#776d62]">Poetry that speaks. Moments that last.</p>
+            </div>
+            <div className="flex items-center gap-3.5 text-[0.9rem] font-medium">
+              <Link className="text-[#5f554b] transition hover:text-[#17392f]" to="/about">About</Link>
+              <a className="text-[#5f554b] transition hover:text-[#17392f]" href="mailto:support@laurentine.co" aria-label="Email">✉</a>
+              <a className="text-[#5f554b] transition hover:text-[#17392f]" href="#" aria-label="Instagram">◎</a>
+              <a className="text-[#5f554b] transition hover:text-[#17392f]" href="#" aria-label="Facebook">●</a>
+            </div>
+          </div>
+        </footer>
+      </div>
+    )
+}
