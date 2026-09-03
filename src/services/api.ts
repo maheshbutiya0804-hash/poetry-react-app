@@ -900,3 +900,48 @@ export async function updateChallengePreferences(input: UserChallengePreferences
   })
   return result.preferences
 }
+
+export type ScavengerLocation = {
+  id: string
+  name: string
+  description?: string | null
+  icon?: string | null
+  imageUrl?: string | null
+  isActive: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export async function getScavengerLocations(): Promise<ScavengerLocation[]> {
+  const response = await apiFetch(`${API_BASE}/scavenger-locations`)
+  if (!response.ok) throw new Error('Unable to load scavenger hunt locations')
+  return response.json()
+}
+export async function adminGetScavengerLocations(): Promise<ScavengerLocation[]> {
+  const response = await apiFetch(`${API_BASE}/admin/scavenger-locations`)
+  if (!response.ok) throw new Error('Unable to load scavenger hunt locations')
+  return response.json()
+}
+export async function adminCreateScavengerLocation(formData: FormData): Promise<ScavengerLocation> {
+  const response = await apiFetch(`${API_BASE}/admin/scavenger-locations`, { method:'POST', body:formData })
+  const body = await response.json().catch(()=>({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to create scavenger location')
+  return body
+}
+export async function adminUpdateScavengerLocation(id:string, formData:FormData): Promise<ScavengerLocation> {
+  const response = await apiFetch(`${API_BASE}/admin/scavenger-locations/${encodeURIComponent(id)}`, { method:'PUT', body:formData })
+  const body = await response.json().catch(()=>({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to update scavenger location')
+  return body
+}
+export async function adminSetScavengerLocationStatus(id:string,isActive:boolean): Promise<ScavengerLocation> {
+  const response = await apiFetch(`${API_BASE}/admin/scavenger-locations/${encodeURIComponent(id)}/status`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({isActive}) })
+  const body = await response.json().catch(()=>({}))
+  if (!response.ok) throw new Error(body.message ?? 'Unable to update scavenger location')
+  return body
+}
+export async function adminDeleteScavengerLocation(id:string): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/admin/scavenger-locations/${encodeURIComponent(id)}`, { method:'DELETE' })
+  if (!response.ok) throw new Error('Unable to delete scavenger location')
+}

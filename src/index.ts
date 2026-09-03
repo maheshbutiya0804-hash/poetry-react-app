@@ -1180,7 +1180,55 @@ app.post('/internal/challenge-reminders/run', async (req, res) => {
   res.json({ remindersProcessed: reminders.length, sent, failed, date: startOfToday.toISOString(), nextDate: startOfTomorrow.toISOString() })
 })
 
+
+
+// Scavenger Hunt locations: public active list + admin management.
+const scavengerLocationSchema = z.object({
+  name: z.string().trim().min(1).max(191),
+  description: z.string().trim().max(500).optional().default(''),
+  icon: z.string().trim().max(80).optional().default(''),
+  isActive: z.union([z.boolean(), z.string()]).optional().transform(v => v === undefined ? true : (typeof v === 'boolean' ? v : v === 'true')),
+  sortOrder: z.coerce.number().int().min(0).max(100000).optional().default(0),
+})
+
+app.get('/scavenger-locations', async (req, res) => {
+  const items = await prisma.scavengerLocation.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] })
+  res.json(items.map(item => ({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })))
+})
 app.use('/admin', requireAdmin)
+
+app.get('/admin/scavenger-locations', async (req, res) => {
+  const items = await prisma.scavengerLocation.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] })
+  res.json(items.map(item => ({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })))
+})
+app.post('/admin/scavenger-locations', upload.single('image'), async (req, res) => {
+  const parsed = scavengerLocationSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Please enter valid scavenger location details.' })
+  const item = await prisma.scavengerLocation.create({ data: { ...parsed.data, imagePath: req.file ? `/uploads/${req.file.filename}` : null } })
+  res.status(201).json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
+})
+app.put('/admin/scavenger-locations/:id', upload.single('image'), async (req, res) => {
+  const parsed = scavengerLocationSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ message: 'Please enter valid scavenger location details.' })
+  try {
+    const current = await prisma.scavengerLocation.findUnique({ where: { id: req.params.id } })
+    if (!current) return res.status(404).json({ message: 'Scavenger location not found.' })
+    const item = await prisma.scavengerLocation.update({ where: { id: req.params.id }, data: { ...parsed.data, imagePath: req.file ? `/uploads/${req.file.filename}` : current.imagePath } })
+    res.json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
+  } catch (error) { console.error(error); res.status(500).json({ message: 'Unable to update scavenger location.' }) }
+})
+app.patch('/admin/scavenger-locations/:id/status', async (req, res) => {
+  const isActive = Boolean(req.body?.isActive)
+  try {
+    const item = await prisma.scavengerLocation.update({ where: { id: req.params.id }, data: { isActive } })
+    res.json({ ...item, imageUrl: absoluteAssetUrl(req, item.imagePath), imagePath: undefined })
+  } catch { res.status(404).json({ message: 'Scavenger location not found.' }) }
+})
+app.delete('/admin/scavenger-locations/:id', async (req, res) => {
+  try { await prisma.scavengerLocation.delete({ where: { id: req.params.id } }); res.status(204).end() }
+  catch { res.status(404).json({ message: 'Scavenger location not found.' }) }
+})
+
 
 
 const taxonomySchema = z.object({

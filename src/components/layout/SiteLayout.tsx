@@ -7,6 +7,7 @@ const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x
 export function SiteLayout(){
   const [open,setOpen]=useState(false)
   const [accountOpen,setAccountOpen]=useState(false)
+  const [loveOpen,setLoveOpen]=useState(false)
   const {user,logout}=useAuth()
   const navigate=useNavigate()
 
@@ -20,10 +21,21 @@ export function SiteLayout(){
             <span className="whitespace-nowrap font-serif text-[24px] font-semibold leading-none text-[#2f2a25]">Laurentine<sup className="ml-px align-super text-[46%] text-[#9f8d79]">™</sup></span>
           </Link>
 
-          <nav aria-label="Primary navigation" className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center gap-8.5 text-base text-[#53493f] max-[1024px]:hidden">
+          <nav aria-label="Primary navigation" className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center gap-7 text-base text-[#53493f] max-[1024px]:hidden">
             <Link className="relative py-1.5 text-[#53493f]" to="/browse">Browse</Link>
             <Link className="relative py-1.5 text-[#53493f]" to="/love-notes">Categories</Link>
-            {user&&<><Link className="relative py-1.5 text-[#53493f]" to="/library">Library</Link><Link className="relative py-1.5 text-[#53493f]" to="/challenges">Challenges</Link><Link className="relative py-1.5 text-[#53493f]" to="/forum">Forum</Link><Link className="relative py-1.5 text-[#53493f]" to="/orders">Orders</Link></>}
+            <div className="relative" onMouseEnter={()=>setLoveOpen(true)} onMouseLeave={()=>setLoveOpen(false)}>
+              <button type="button" className="inline-flex items-center gap-1.5 py-1.5 text-[#53493f]" aria-haspopup="menu" aria-expanded={loveOpen} onClick={()=>setLoveOpen(v=>!v)}>
+                Love in Action
+                <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div className={`absolute left-1/2 top-[calc(100%+8px)] z-50 w-64 -translate-x-1/2 rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.99)] p-2 shadow-[0_18px_30px_rgba(42,31,21,0.12)] ${loveOpen?'block':'hidden'}`} role="menu">
+                <Link className="block rounded-xl px-4 py-3 font-semibold text-[#2f2a25] hover:bg-[#f4eee5]" to="/love-in-action" onClick={()=>setLoveOpen(false)}>Love in Action Overview</Link>
+                <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/monthly-challenges" onClick={()=>setLoveOpen(false)}>Monthly Challenges</Link>
+                <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/scavenger-hunt" onClick={()=>setLoveOpen(false)}>Scavenger Hunt</Link>
+              </div>
+            </div>
+            {user&&<><Link className="relative py-1.5 text-[#53493f]" to="/library">Library</Link><Link className="relative py-1.5 text-[#53493f]" to="/forum">Forum</Link><Link className="relative py-1.5 text-[#53493f]" to="/orders">Orders</Link></>}
           </nav>
 
           <div className="flex flex-wrap items-center gap-3.5 max-[1024px]:hidden">
@@ -50,10 +62,15 @@ export function SiteLayout(){
             <div id="public-menu-panel" className={`absolute right-0 top-[calc(100%+10px)] min-w-55 flex-col gap-2 rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.98)] p-2.5 shadow-[0_18px_30px_rgba(42,31,21,0.1)] ${open?'flex':'hidden'}`}>
               <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:-translate-y-px hover:bg-[#f4eee5] focus:-translate-y-px focus:bg-[#f4eee5] focus:outline-none" to="/browse" onClick={()=>setOpen(false)}>Browse</Link>
               <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:-translate-y-px hover:bg-[#f4eee5] focus:-translate-y-px focus:bg-[#f4eee5] focus:outline-none" to="/love-notes" onClick={()=>setOpen(false)}>Categories</Link>
+              <div className="my-1 border-t border-[rgba(57,47,39,0.08)]" />
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 font-semibold text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/love-in-action" onClick={()=>setOpen(false)}>Love in Action</Link>
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 pl-6 text-[#5f554b] transition hover:bg-[#f4eee5]" to="/monthly-challenges" onClick={()=>setOpen(false)}>Monthly Challenges</Link>
+              <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 pl-6 text-[#5f554b] transition hover:bg-[#f4eee5]" to="/scavenger-hunt" onClick={()=>setOpen(false)}>Scavenger Hunt</Link>
+              <div className="my-1 border-t border-[rgba(57,47,39,0.08)]" />
               {user ? (
                 <>
                   <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/library" onClick={()=>setOpen(false)}>Library</Link>
-                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/challenges" onClick={()=>setOpen(false)}>Challenges</Link>
+                  <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/challenges" onClick={()=>setOpen(false)}>My Challenges</Link>
                   <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/forum" onClick={()=>setOpen(false)}>Forum</Link>
                   <Link className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-[#2f2a25] transition hover:bg-[#f4eee5]" to="/orders" onClick={()=>setOpen(false)}>Orders</Link>
                   <div className="my-1 border-t border-[rgba(57,47,39,0.1)]" />
