@@ -923,10 +923,6 @@ app.patch('/challenges/:challengeId/participation', async (req, res) => {
   const selectedCardId = parsed.data.selectedCardId !== undefined ? parsed.data.selectedCardId : existing?.selectedCardId ?? null
   const nextStatus = parsed.data.status ?? existing?.status ?? 'STARTED'
 
-  if (nextStatus === 'COMPLETED' && (!selectedLocation || !selectedCardId)) {
-    return res.status(400).json({ message: 'Choose a Love Note and a Where to Leave It location before completing the challenge.' })
-  }
-
   const participation = await prisma.challengeParticipation.upsert({
     where: { userId_challengeId: { userId: auth.id, challengeId: challenge.id } },
     create: {
