@@ -29,10 +29,12 @@ export function SiteLayout(){
                 Love in Action
                 <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
               </button>
-              <div className={`absolute left-1/2 top-[calc(100%+8px)] z-50 w-64 -translate-x-1/2 rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.99)] p-2 shadow-[0_18px_30px_rgba(42,31,21,0.12)] ${loveOpen?'block':'hidden'}`} role="menu">
-                <Link className="block rounded-xl px-4 py-3 font-semibold text-[#2f2a25] hover:bg-[#f4eee5]" to="/love-in-action" onClick={()=>setLoveOpen(false)}>Love in Action Overview</Link>
-                <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/monthly-challenges" onClick={()=>setLoveOpen(false)}>Monthly Challenges</Link>
-                <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/scavenger-hunt" onClick={()=>setLoveOpen(false)}>Scavenger Hunt</Link>
+              <div className={`absolute left-1/2 top-full z-50 w-64 -translate-x-1/2 pt-2 ${loveOpen?'block':'hidden'}`} role="menu">
+                <div className="rounded-2xl border border-[rgba(57,47,39,0.1)] bg-[rgba(252,250,247,0.99)] p-2 shadow-[0_18px_30px_rgba(42,31,21,0.12)]">
+                  <Link className="block rounded-xl px-4 py-3 font-semibold text-[#2f2a25] hover:bg-[#f4eee5]" to="/love-in-action" onClick={()=>setLoveOpen(false)}>Love in Action Overview</Link>
+                  <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/monthly-challenges" onClick={()=>setLoveOpen(false)}>Monthly Challenges</Link>
+                  <Link className="block rounded-xl px-4 py-3 text-[#53493f] hover:bg-[#f4eee5]" to="/scavenger-hunt" onClick={()=>setLoveOpen(false)}>Scavenger Hunt</Link>
+                </div>
               </div>
             </div>
             {user&&<><Link className="relative py-1.5 text-[#53493f]" to="/library">Library</Link><Link className="relative py-1.5 text-[#53493f]" to="/forum">Forum</Link><Link className="relative py-1.5 text-[#53493f]" to="/orders">Orders</Link></>}
