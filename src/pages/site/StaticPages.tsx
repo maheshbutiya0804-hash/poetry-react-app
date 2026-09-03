@@ -244,23 +244,112 @@ export function HomePage() {
 }
 
 export function AboutPage(){return <ContentPage eyebrow="About" title="About Me"><p>This route preserves the approved About Me section. Replace this placeholder copy with the existing approved website content when supplied.</p></ContentPage>}
-export function LoveInActionPage(){return <main className="flex-1 bg-[#f7f4ef] text-[#2f2a25]">
-  <section className="mx-auto w-[min(1120px,calc(100%-48px))] py-16 max-[760px]:w-[calc(100%-36px)] max-[760px]:py-10">
-    <div className="mx-auto max-w-[850px] text-center"><span className="text-xs font-bold uppercase tracking-[0.2em] text-[#9a7654]">Love in Action</span><h1 className="mt-3 font-serif text-[clamp(3rem,7vw,5.6rem)] font-semibold leading-[0.92] tracking-[-0.04em]">Love is something we live.</h1><div className="mx-auto mt-7 max-w-[760px] space-y-4 text-[1.02rem] leading-8 text-[#6f655c]"><p>Love is more than something we feel. It's something we choose, nurture, and put into action.</p><p>At Laurentine, we believe that relationships grow when couples intentionally make time for one another. Love in Action was created to inspire couples to step away from the routine, spend meaningful time together, and continue creating new memories.</p><p>Whether you're taking on one of our monthly challenges or creating a special surprise through our scavenger hunt, every experience is an opportunity to laugh together, connect, and strengthen the bond you share.</p></div></div>
-    <div className="mt-14 grid grid-cols-2 gap-6 max-[820px]:grid-cols-1">
-      <article className="rounded-[30px] border border-[rgba(57,47,39,.11)] bg-[#fcfaf7] p-8 shadow-[0_18px_45px_rgba(47,37,28,.05)] max-[600px]:p-6"><span className="text-xs font-bold uppercase tracking-[0.18em] text-[#9a7654]">Monthly Challenges</span><h2 className="mt-3 font-serif text-[2.35rem] font-semibold leading-none">Make time for each other.</h2><p className="mt-5 leading-7 text-[#746a60]">Sometimes, all you need is a little inspiration to do something different together. Our monthly challenges are completely optional—but highly recommended.</p><p className="mt-3 leading-7 text-[#746a60]">Every challenge is simple, fun, affordable, and designed to build affection, strengthen your bond, and keep you creating meaningful memories together.</p><p className="mt-5 font-serif text-xl italic text-[#4f473f]">Make time. Build affection. Strengthen your bond. Keep dating each other.</p><Link to="/challenges" className="mt-7 inline-flex min-h-12 items-center justify-center rounded-full bg-[#17392f] px-6 text-sm font-bold text-white">Explore Monthly Challenges</Link></article>
-      <article className="rounded-[30px] border border-[rgba(57,47,39,.11)] bg-[#f2e7dc] p-8 shadow-[0_18px_45px_rgba(47,37,28,.05)] max-[600px]:p-6"><span className="text-xs font-bold uppercase tracking-[0.18em] text-[#9a7654]">Scavenger Hunt</span><h2 className="mt-3 font-serif text-[2.35rem] font-semibold leading-none">Let love be discovered.</h2><p className="mt-5 leading-7 text-[#746a60]">No one knows your partner better than you do. Choose a Laurentine love note and leave it somewhere you know your partner will surely find it.</p><p className="mt-3 leading-7 text-[#746a60]">A favorite chair. The bathroom mirror. Their car. Inside a book they're reading. Somewhere unexpected—but somewhere only you would know to choose.</p><p className="mt-5 font-serif text-xl italic text-[#4f473f]">Hide a note. Create a moment. Let love be discovered.</p><Link to="/scavenger-hunt" className="mt-7 inline-flex min-h-12 items-center justify-center rounded-full bg-[#8d5758] px-6 text-sm font-bold text-white">Start a Scavenger Hunt</Link></article>
+export function LoveInActionPage(){return <main className="lia-page lia-overview-page">
+  <section className="lia-overview-intro">
+    <div className="lia-intro-copy">
+      <p className="lia-eyebrow">Love in Action</p>
+      <h1>Love is something we live.</h1>
+      <p className="lia-intro-lead">Love is more than something we feel. It's something we choose, nurture, and put into action.</p>
+      <p>At Laurentine, we believe that relationships grow when couples intentionally make time for one another. Love in Action was created to inspire couples to step away from the routine, spend meaningful time together, and continue creating new memories.</p>
+      <p>Whether you're taking on one of our monthly challenges or creating a special surprise through our scavenger hunt, every experience is an opportunity to laugh together, connect, and strengthen the bond you share.</p>
     </div>
-    <p className="mx-auto mt-12 max-w-[760px] text-center font-serif text-[1.45rem] italic leading-8 text-[#5d534a]">Because love is beautiful when it's spoken—but it's even more powerful when it's lived.</p>
+  </section>
+
+  <section className="lia-choice-wrap">
+    <div className="lia-choice-grid">
+      <article className="lia-choice-card lia-choice-card--challenge">
+        <p className="lia-card-eyebrow">Monthly Challenges</p>
+        <h2>Make time for each other.</h2>
+        <p>Sometimes, all you need is a little inspiration to do something different together. Our monthly challenges are completely optional—but highly recommended.</p>
+        <p>Every challenge is simple, fun, affordable, and designed to build affection, strengthen your bond, and keep you creating meaningful memories together.</p>
+        <p className="lia-card-quote">Make time. Build affection. Strengthen your bond. Keep dating each other.</p>
+        <Link to="/challenges" className="lia-button lia-button--green">Explore Monthly Challenges</Link>
+      </article>
+
+      <article className="lia-choice-card lia-choice-card--hunt">
+        <p className="lia-card-eyebrow">Scavenger Hunt</p>
+        <h2>Let love be discovered.</h2>
+        <p>No one knows your partner better than you do. Choose a Laurentine love note and leave it somewhere you know your partner will surely find it.</p>
+        <p>A favorite chair. The bathroom mirror. Their car. Inside a book they're reading. Somewhere unexpected—but somewhere only you would know to choose.</p>
+        <p className="lia-card-quote">Hide a note. Create a moment. Let love be discovered.</p>
+        <Link to="/scavenger-hunt" className="lia-button lia-button--rose">Start a Scavenger Hunt</Link>
+      </article>
+    </div>
+    <p className="lia-closing-quote">Because love is beautiful when it's spoken—but it's even more powerful when it's lived.</p>
   </section>
 </main>}
-export function MonthlyChallengesPage(){return <ContentPage eyebrow="Monthly Challenges" title="Make time. Keep dating each other."><p>Our monthly challenges are completely optional—but highly recommended. Each one is designed to encourage couples to intentionally spend time together, build affection, strengthen their bond, and continue creating meaningful memories.</p><p>There won't be anything outlandish or expensive. Every challenge is designed to be simple, fun, and affordable, because meaningful moments don't have to come with a big price tag.</p><p>You don't have to complete every challenge. Just choose the ones that inspire you, make time for each other, and enjoy the experience.</p><Link className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#17392f] px-6 text-sm font-bold text-white" to="/challenges">View Current Challenge</Link></ContentPage>}
+
+export function MonthlyChallengesPage(){return <main className="lia-page lia-monthly-page">
+  <section className="lia-monthly-hero">
+    <div className="lia-monthly-hero-inner">
+      <p className="lia-eyebrow">Monthly Challenges</p>
+      <h1>Make time. Keep dating each other.</h1>
+    </div>
+  </section>
+  <section className="lia-monthly-body">
+    <div className="lia-monthly-copy">
+      <p>Our monthly challenges are completely optional—but highly recommended. Each one is designed to encourage couples to intentionally spend time together, build affection, strengthen their bond, and continue creating meaningful memories.</p>
+      <p>There won't be anything outlandish or expensive. Every challenge is designed to be simple, fun, and affordable, because meaningful moments don't have to come with a big price tag.</p>
+      <p>You don't have to complete every challenge. Just choose the ones that inspire you, make time for each other, and enjoy the experience.</p>
+      <Link className="lia-button lia-button--green" to="/challenges">View Current Challenge</Link>
+    </div>
+  </section>
+</main>}
+
 export function ScavengerHuntPage(){
- const fallback=['Favorite chair','Bathroom mirror','Their car','Inside a book they are reading','Nightstand','Coffee maker','Pillow','Lunch bag','Fridge','Bedroom door','Kitchen drawer','Office desk or favorite seat']
+ const fallback=[
+  {name:'Bathroom mirror',description:'A sweet surprise during their morning or evening routine.'},
+  {name:'Nightstand',description:'Place the note somewhere they will notice before bed or after waking.'},
+  {name:'Fridge',description:'A little love waiting in an everyday kitchen spot.'},
+  {name:'Lunch bag',description:'Send an unexpected moment of affection into their day.'},
+  {name:'Car',description:'Leave a note where they will find it before their next drive.'},
+  {name:'TV area',description:'Hide it near the place where you relax together.'},
+  {name:'Pillow',description:'A personal note waiting at the end of the day.'},
+  {name:'Bedroom door',description:'Place it somewhere impossible to miss.'},
+  {name:'Coffee maker',description:'Add a loving surprise to their morning coffee routine.'},
+  {name:'Inside a book',description:'Tuck it inside a book they are currently reading.'},
+  {name:'Kitchen drawer',description:'Turn an ordinary everyday spot into a discovery.'},
+  {name:'Office desk / favorite seat',description:'Choose the place where they naturally settle during the day.'},
+  {name:'Dinner / Breakfast',description:'Let the note become part of a meal you share.'},
+ ]
  const [locations,setLocations]=useState<ScavengerLocation[]>([])
  useEffect(()=>{let live=true;getScavengerLocations().then(items=>{if(live)setLocations(items)}).catch(()=>{});return()=>{live=false}},[])
- const display=locations.length?locations:fallback.map((name,index)=>({id:`fallback-${index}`,name,description:'',icon:'',imageUrl:null,isActive:true,sortOrder:index,createdAt:'',updatedAt:''}))
- return <main className="flex-1 bg-[#f7f4ef] text-[#2f2a25]"><section className="mx-auto w-[min(1060px,calc(100%-48px))] py-16 max-[760px]:w-[calc(100%-36px)] max-[760px]:py-10"><div className="mx-auto max-w-[800px] text-center"><span className="text-xs font-bold uppercase tracking-[0.2em] text-[#9a7654]">Love in Action · Scavenger Hunt</span><h1 className="mt-3 font-serif text-[clamp(3rem,7vw,5.3rem)] font-semibold leading-[0.92] tracking-[-0.04em]">Let love be discovered.</h1><p className="mt-6 text-[1.05rem] leading-8 text-[#6f655c]">No one knows your partner better than you do. You know the places they'll look, the routines they follow, and the little spaces where they're sure to discover something special.</p><p className="mt-4 text-[1.05rem] leading-8 text-[#6f655c]">Choose a Laurentine love note, personalize it, then leave it somewhere you know your partner will surely find it. Let the discovery become part of the experience.</p></div><div className="mt-12 rounded-[30px] border border-[rgba(57,47,39,.11)] bg-[#fcfaf7] p-8 max-[600px]:p-5"><div className="flex flex-wrap items-end justify-between gap-4"><div><span className="text-xs font-bold uppercase tracking-[0.18em] text-[#9a7654]">A little inspiration</span><h2 className="mt-2 font-serif text-[2.2rem] font-semibold">Where might they find it?</h2></div><Link to="/browse" className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#8d5758] px-6 text-sm font-bold text-white">Choose a Love Note</Link></div><div className="mt-7 grid grid-cols-3 gap-3 max-[760px]:grid-cols-2 max-[480px]:grid-cols-1">{display.map((location,index)=><div key={location.id} className="overflow-hidden rounded-[18px] border border-[rgba(57,47,39,.09)] bg-[#f8f1e8]">{location.imageUrl&&<img src={location.imageUrl} alt="" className="h-[110px] w-full object-cover"/>}<div className="flex min-h-[70px] items-center gap-3 px-4 py-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eadbd0] text-xs font-extrabold text-[#8d5758]">{String(index+1).padStart(2,'0')}</span><span><b className="block text-sm text-[#4f473f]">{location.name}</b>{location.description&&<small className="mt-1 block leading-5 text-[#7b7066]">{location.description}</small>}</span></div></div>)}</div></div><div className="mx-auto mt-10 max-w-[760px] text-center"><p className="font-serif text-2xl italic leading-9">Because the best surprises aren't always about where you hide them. They're about knowing the person you love well enough to know exactly where they'll look.</p><p className="mt-6 text-sm font-bold uppercase tracking-[0.16em] text-[#8d5758]">Hide a note. Create a moment. Let love be discovered.</p></div></section></main>
+ const display=locations.length?locations:fallback.map((item,index)=>({id:`fallback-${index}`,name:item.name,description:item.description,icon:'',imageUrl:null,isActive:true,sortOrder:index,createdAt:'',updatedAt:''}))
+ return <main className="lia-page lia-hunt-page">
+   <section className="lia-hunt-intro">
+     <div className="lia-hunt-intro-inner">
+       <p className="lia-eyebrow">Love in Action · Scavenger Hunt</p>
+       <h1>Let love be discovered.</h1>
+       <p>No one knows your partner better than you do. You know the places they'll look, the routines they follow, and the little spaces where they're sure to discover something special.</p>
+       <p>Choose a Laurentine love note, personalize it, then leave it somewhere you know your partner will surely find it. Let the discovery become part of the experience.</p>
+     </div>
+   </section>
+
+   <section className="lia-hunt-content">
+     <div className="lia-inspiration-panel">
+       <div className="lia-inspiration-head">
+         <div>
+           <p className="lia-card-eyebrow">A little inspiration</p>
+           <h2>Where might they find it?</h2>
+         </div>
+         <Link to="/browse" className="lia-button lia-button--rose">Choose a Love Note</Link>
+       </div>
+       <div className="lia-location-grid">
+         {display.map((location,index)=><article key={location.id} className={`lia-location-card ${location.imageUrl?'lia-location-card--image':''}`}>
+           {location.imageUrl&&<img src={location.imageUrl} alt=""/>}
+           <div className="lia-location-copy">
+             <span className="lia-location-number">{String(index+1).padStart(2,'0')}</span>
+             <div><h3>{location.name}</h3>{location.description&&<p>{location.description}</p>}</div>
+           </div>
+         </article>)}
+       </div>
+     </div>
+     <div className="lia-hunt-closing">
+       <p>Because the best surprises aren't always about where you hide them. They're about knowing the person you love well enough to know exactly where they'll look.</p>
+       <strong>Hide a note. Create a moment. Let love be discovered.</strong>
+     </div>
+   </section>
+ </main>
 }
 
 export function FaqPage(){return <ContentPage eyebrow="Help" title="Frequently Asked Questions"><div className="faq-list">{['How do Love Notes work?','What size is my downloaded card?','Is the downloaded PDF the same as my preview?','Are Love Notes single-sided?'].map((q,i)=><details key={q}><summary>{q}</summary><p>{i===1?'Every Love Note is 5 × 7 inches in landscape orientation.':i===2?'The current implementation previews the supplied card artwork and downloads the matching client-supplied PDF, avoiding a separately recreated design.':i===3?'Yes. Cards are front-side only, with one card per PDF page.':'Choose an approved collection and card, preview the supplied artwork, then download its matching PDF.'}</p></details>)}</div></ContentPage>}
