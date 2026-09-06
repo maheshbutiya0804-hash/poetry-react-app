@@ -1,0 +1,195 @@
+diff --git a/server/prisma/migrations/20260906000000_add_card_order_link/migration.sql b/server/prisma/migrations/20260906000000_add_card_order_link/migration.sql
+new file mode 100644
+index 0000000..8bda1a3
+--- /dev/null
++++ b/server/prisma/migrations/20260906000000_add_card_order_link/migration.sql
+@@ -0,0 +1,8 @@
++-- AlterTable
++ALTER TABLE `cardorder` ADD COLUMN `cardId` VARCHAR(191) NULL;
++
++-- CreateIndex
++CREATE INDEX `cardorder_cardId_idx` ON `cardorder`(`cardId`);
++
++-- AddForeignKey
++ALTER TABLE `cardorder` ADD CONSTRAINT `cardorder_cardId_fkey` FOREIGN KEY (`cardId`) REFERENCES `card`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+diff --git a/server/prisma/schema.prisma b/server/prisma/schema.prisma
+index 4dd78f5..a593f3c 100644
+--- a/server/prisma/schema.prisma
++++ b/server/prisma/schema.prisma
+@@ -45,6 +45,7 @@ model Card {
+   isPublished      Boolean    @default(false)
+   createdAt        DateTime   @default(now())
+   updatedAt        DateTime   @updatedAt
++  orders           CardOrder[]
+ 
+   @@index([collectionId, isPublished])
+   @@index([isPublished, createdAt])
+@@ -187,6 +188,8 @@ model CardOrder {
+   orderNumber     String    @unique @db.VarChar(80)
+   userId          String?   @db.VarChar(191)
+   user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
++  cardId          String?   @db.VarChar(191)
++  card            Card?     @relation(fields: [cardId], references: [id], onDelete: SetNull)
+   customerName    String    @db.VarChar(191)
+   customerEmail   String    @db.VarChar(191)
+   cardTitle       String    @db.VarChar(191)
+@@ -208,6 +211,7 @@ model CardOrder {
+   @@index([status, placedAt])
+   @@index([reviewed])
+   @@index([userId])
++  @@index([cardId])
+   @@map("cardorder")
+ }
+ 
+diff --git a/server/prisma/seed.ts b/server/prisma/seed.ts
+index c10161d..0524fc2 100644
+--- a/server/prisma/seed.ts
++++ b/server/prisma/seed.ts
+@@ -26,7 +26,11 @@ async function main() {
+   const existingPayment = await prisma.paymentTransaction.findFirst({ where: { providerTransactionId: 'demo-payment-001' } })
+   if (!existingPayment) await prisma.paymentTransaction.create({ data: { userId: member.id, providerTransactionId: 'demo-payment-001', description: 'Subscription update', amount: 8.99, status: 'FAILED' } })
+   const demoOrder = await prisma.cardOrder.findUnique({ where: { orderNumber: 'HSN-DEMO-0001' } })
+-  if (!demoOrder) await prisma.cardOrder.create({ data: { orderNumber: 'HSN-DEMO-0001', userId: member.id, customerName: member.fullName, customerEmail: member.email, cardTitle: 'Moonlit Vow', cardCategory: 'Love', quantity: 1, status: 'PLACED', reviewed: false } })
++  if (!demoOrder) {
++    // If an admin has already uploaded a matching card, link it so Most Bought has real data to aggregate.
++    const matchingCard = await prisma.card.findFirst({ where: { title: 'Moonlit Vow' } })
++    await prisma.cardOrder.create({ data: { orderNumber: 'HSN-DEMO-0001', userId: member.id, cardId: matchingCard?.id, customerName: member.fullName, customerEmail: member.email, cardTitle: 'Moonlit Vow', cardCategory: 'Love', quantity: 1, status: 'PLACED', reviewed: false } })
++  }
+ 
+   console.log(`Seed complete${adminEmail ? `; admin ready at ${adminEmail}` : '; no admin password configured — run npm run admin:bootstrap after setting ADMIN_EMAIL/ADMIN_PASSWORD'}`)
+ }
+diff --git a/server/src/index.ts b/server/src/index.ts
+index fdb2f65..bdb765f 100644
+--- a/server/src/index.ts
++++ b/server/src/index.ts
+@@ -50,14 +50,36 @@ const publicCardSelect = {
+   templateKey: true,
+   frontLayout: true,
+   backLayout: true,
++  createdAt: true,
+ } as const
+ 
++// A card shows a "New" badge for this long after it's uploaded.
++const NEW_BADGE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
++// A card needs at least this many completed units sold to be eligible for "Most Bought".
++const MOST_BOUGHT_MIN_UNITS = 3
++// At most this many cards can show the "Most Bought" badge at once.
++const MOST_BOUGHT_LIMIT = 5
++
++// Cards ranked by total units sold across non-cancelled orders, highest first, capped at MOST_BOUGHT_LIMIT.
++async function getMostBoughtCardIds(): Promise<Set<string>> {
++  const groups = await prisma.cardOrder.groupBy({
++    by: ['cardId'],
++    where: { cardId: { not: null }, status: { not: 'CANCELLED' } },
++    _sum: { quantity: true },
++  })
++  const ranked = groups
++    .filter(g => (g._sum.quantity ?? 0) >= MOST_BOUGHT_MIN_UNITS)
++    .sort((a, b) => (b._sum.quantity ?? 0) - (a._sum.quantity ?? 0))
++    .slice(0, MOST_BOUGHT_LIMIT)
++  return new Set(ranked.map(g => g.cardId as string))
++}
++
+ function absoluteAssetUrl(req: express.Request, relativePath: string | null) {
+   if (!relativePath) return null
+   return `${req.protocol}://${req.get('host')}/uploads/${relativePath.replaceAll('\\', '/')}`
+ }
+ 
+-function cardDto(req: express.Request, card: any) {
++function cardDto(req: express.Request, card: any, mostBoughtIds: Set<string> = new Set()) {
+   return {
+     id: card.id,
+     slug: card.slug,
+@@ -78,6 +100,8 @@ function cardDto(req: express.Request, card: any) {
+     orientation: card.orientation,
+     sideCount: card.sideCount,
+     pageCount: card.pageCount,
++    isNew: card.createdAt ? Date.now() - new Date(card.createdAt).getTime() <= NEW_BADGE_WINDOW_MS : false,
++    isMostBought: mostBoughtIds.has(card.id),
+   }
+ }
+ 
+@@ -93,21 +117,27 @@ app.get('/api/collections', async (_req, res) => {
+ })
+ 
+ app.get('/api/collections/:collectionId/cards', async (req, res) => {
+-  const cards = await prisma.card.findMany({
+-    where: { collectionId: req.params.collectionId, isPublished: true },
+-    orderBy: { createdAt: 'desc' },
+-    select: publicCardSelect,
+-  })
+-  res.json(cards.map(card => cardDto(req, card)))
++  const [cards, mostBoughtIds] = await Promise.all([
++    prisma.card.findMany({
++      where: { collectionId: req.params.collectionId, isPublished: true },
++      orderBy: { createdAt: 'desc' },
++      select: publicCardSelect,
++    }),
++    getMostBoughtCardIds(),
++  ])
++  res.json(cards.map(card => cardDto(req, card, mostBoughtIds)))
+ })
+ 
+ app.get('/api/cards/:cardId', async (req, res) => {
+-  const card = await prisma.card.findFirst({
+-    where: { id: req.params.cardId, isPublished: true },
+-    select: publicCardSelect,
+-  })
++  const [card, mostBoughtIds] = await Promise.all([
++    prisma.card.findFirst({
++      where: { id: req.params.cardId, isPublished: true },
++      select: publicCardSelect,
++    }),
++    getMostBoughtCardIds(),
++  ])
+   if (!card) return res.status(404).json({ message: 'Card not found' })
+-  res.json(cardDto(req, card))
++  res.json(cardDto(req, card, mostBoughtIds))
+ })
+ 
+ const registerSchema = z.object({
+diff --git a/src/components/love-notes/LoveNoteCard.tsx b/src/components/love-notes/LoveNoteCard.tsx
+index abe5be6..ce10e0c 100644
+--- a/src/components/love-notes/LoveNoteCard.tsx
++++ b/src/components/love-notes/LoveNoteCard.tsx
+@@ -23,6 +23,12 @@ export function LoveNoteCard({ card, className = '', eager = false }: Props) {
+           loading={eager ? 'eager' : 'lazy'}
+         />
+       )}
++      {(card.isMostBought || card.isNew) && (
++        <div className="love-note-badges">
++          {card.isMostBought && <span className="love-note-badge love-note-badge--bestseller">Most Bought</span>}
++          {card.isNew && <span className="love-note-badge love-note-badge--new">New</span>}
++        </div>
++      )}
+     </figure>
+   )
+ }
+diff --git a/src/styles.css b/src/styles.css
+index 186f1e9..dcc622f 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -246,6 +246,10 @@ textarea { resize:vertical; }
+ .admin-checkbox-row input { width: auto !important; }
+ .admin-upload-status { margin: 0; padding: .9rem 1rem; border-radius: 10px; background: rgba(37, 77, 58, .08); color: #254d3a; }
+ .love-note-pdf-preview { width: 100%; height: 100%; border: 0; pointer-events: none; }
++.love-note-badges{position:absolute;top:10px;left:10px;z-index:3;display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none}
++.love-note-badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;box-shadow:0 4px 10px rgba(0,0,0,.15)}
++.love-note-badge--new{background:var(--hs-accent);color:#fff}
++.love-note-badge--bestseller{background:var(--gold);color:var(--hs-ink)}
+ .auth-error{border:1px solid #dfb8b2;background:#fff2ef;color:#8a3f37;border-radius:6px;padding:12px 14px;font-size:13px;margin:-18px 0 20px}.auth-primary:disabled{opacity:.65;cursor:wait}
+ 
+ 
+diff --git a/src/types/loveNote.ts b/src/types/loveNote.ts
+index b0edbdb..09ca28c 100644
+--- a/src/types/loveNote.ts
++++ b/src/types/loveNote.ts
+@@ -18,6 +18,8 @@ export type LoveNoteCard = {
+   poemText?: string
+   adminNotes?: string
+   isFeatured?: boolean
++  isNew?: boolean
++  isMostBought?: boolean
+   templateKey?: string
+   frontLayout?: unknown
+   backLayout?: unknown
