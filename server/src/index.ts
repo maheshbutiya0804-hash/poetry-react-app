@@ -266,6 +266,7 @@ const publicCardSelect = {
   adminNotes: true,
   isFeatured: true,
   templateKey: true,
+  createdAt: true,
   frontLayout: true,
   backLayout: true,
   updatedAt: true,
@@ -276,6 +277,42 @@ function absoluteAssetUrl(req: express.Request, relativePath: string | null) {
   const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim()
   const protocol = forwardedProto || req.protocol
   return `${protocol}://${req.get('host')}/uploads/${relativePath.replaceAll('\\', '/')}`
+}
+
+async function enrichCardBadges(cards: any[]) {
+  if (!cards.length) return cards
+  const now = new Date()
+  const newCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const purchaseCutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+
+  const purchaseGroups = await prisma.cardOrder.groupBy({
+    by: ['cardId'],
+    where: {
+      cardId: { not: null },
+      status: 'DELIVERED',
+      createdAt: { gte: purchaseCutoff },
+    },
+    _sum: { quantity: true },
+  })
+
+  const purchaseCounts = new Map<string, number>()
+  for (const group of purchaseGroups) {
+    if (group.cardId) purchaseCounts.set(group.cardId, Number(group._sum.quantity ?? 0))
+  }
+
+  const topIds = new Set(
+    [...purchaseCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([id]) => id),
+  )
+
+  return cards.map(card => ({
+    ...card,
+    isNew: Boolean(card.isPublished && card.createdAt && new Date(card.createdAt).getTime() >= newCutoff.getTime()),
+    isMostBought: Boolean(card.id && topIds.has(card.id)),
+    purchaseCount90d: purchaseCounts.get(card.id) ?? 0,
+  }))
 }
 
 function cardDto(req: express.Request, card: any) {
@@ -294,6 +331,9 @@ function cardDto(req: express.Request, card: any) {
     poemText: card.poemText ?? '',
     adminNotes: card.adminNotes ?? '',
     isFeatured: card.isFeatured ?? false,
+    isNew: Boolean(card.isNew),
+    isMostBought: Boolean(card.isMostBought),
+    purchaseCount90d: Number(card.purchaseCount90d ?? 0),
     templateKey: card.templateKey ?? 'botanical-cream',
     frontLayout: card.frontLayout ?? null,
     backLayout: card.backLayout ?? null,
@@ -303,6 +343,7 @@ function cardDto(req: express.Request, card: any) {
     orientation: card.orientation,
     sideCount: card.sideCount,
     pageCount: card.pageCount,
+    createdAt: card.createdAt,
     updatedAt: card.updatedAt,
   }
 }
@@ -391,7 +432,8 @@ app.get('/collections/:collectionId/cards', async (req, res) => {
     orderBy: { createdAt: 'desc' },
     select: publicCardSelect,
   })
-  res.json(cards.map(card => cardDto(req, card)))
+  const enriched = await enrichCardBadges(cards)
+  res.json(enriched.map(card => cardDto(req, card)))
 })
 
 app.get('/categories', async (_req, res) => {
@@ -462,7 +504,8 @@ app.get('/cards/:cardId', async (req, res) => {
     select: publicCardSelect,
   })
   if (!card) return res.status(404).json({ message: 'Card not found' })
-  res.json(cardDto(req, card))
+  const [enriched] = await enrichCardBadges([card])
+  res.json(cardDto(req, enriched))
 })
 
 const registerSchema = z.object({
@@ -971,7 +1014,9 @@ app.get('/library', async (req, res) => {
     orderBy: { createdAt: 'desc' },
     include: { card: { select: publicCardSelect } },
   })
-  res.json(saved.map(item => ({ id: item.id, savedAt: item.createdAt, usedAt: item.usedAt, card: cardDto(req, item.card) })))
+  const enrichedCards = await enrichCardBadges(saved.map(item => item.card))
+  const enrichedById = new Map(enrichedCards.map(card => [card.id, card]))
+  res.json(saved.map(item => ({ id: item.id, savedAt: item.createdAt, usedAt: item.usedAt, card: cardDto(req, enrichedById.get(item.card.id) ?? item.card) })))
 })
 
 app.post('/library/:cardId', async (req, res) => {

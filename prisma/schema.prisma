@@ -320,6 +320,7 @@ model CardOrder {
   @@index([reviewed])
   @@index([userId])
   @@index([cardId])
+  @@index([status, createdAt, cardId])
   @@map("cardorder")
 }
 

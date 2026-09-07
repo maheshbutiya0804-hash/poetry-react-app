@@ -23,6 +23,10 @@ export type LoveNoteCard = {
   poemText?: string
   adminNotes?: string
   isFeatured?: boolean
+  isNew?: boolean
+  isMostBought?: boolean
+  purchaseCount90d?: number
+  createdAt?: string
   templateKey?: string
   frontLayout?: unknown
   backLayout?: unknown
