@@ -479,6 +479,32 @@ async function requireActiveSubscription(req: express.Request, res: express.Resp
   return auth
 }
 
+app.get('/cards/search', async (req, res) => {
+  const query = String(req.query.q ?? '').trim()
+  if (!query) return res.json([])
+
+  const cards = await prisma.card.findMany({
+    where: {
+      isPublished: true,
+      OR: [
+        { title: { contains: query } },
+        { description: { contains: query } },
+        { poemText: { contains: query } },
+        { category: { name: { contains: query } } },
+        { category: { slug: { contains: query } } },
+        { collection: { name: { contains: query } } },
+        { collection: { slug: { contains: query } } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: publicCardSelect,
+  })
+
+  const enriched = await enrichCardBadges(cards)
+  res.json(enriched.map(card => cardDto(req, card)))
+})
+
 app.get('/cards/:cardId/pdf', async (req, res) => {
   const auth = await requireActiveSubscription(req, res)
   if (!auth) return
